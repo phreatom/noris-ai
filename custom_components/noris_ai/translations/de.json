@@ -1,0 +1,104 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Dienst ist bereits konfiguriert",
+      "reauth_successful": "Erneute Authentifizierung war erfolgreich",
+      "reconfigure_successful": "Neukonfiguration war erfolgreich"
+    },
+    "error": {
+      "cannot_connect": "Verbindung fehlgeschlagen",
+      "invalid_auth": "Ungültige Authentifizierung",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "api_key": "API-Schlüssel"
+        },
+        "data_description": {
+          "api_key": "Dein ai.noris.de API-Schlüssel (der 'sk-bf-...'-Wert, der im x-bf-vk-Header gesendet wird)."
+        }
+      },
+      "reauth_confirm": {
+        "data": {
+          "api_key": "API-Schlüssel"
+        },
+        "data_description": {
+          "api_key": "Dein ai.noris.de API-Schlüssel (der 'sk-bf-...'-Wert, der im x-bf-vk-Header gesendet wird)."
+        },
+        "description": "Der noris AI API-Schlüssel ist nicht mehr gültig. Bitte gib einen neuen ein."
+      },
+      "reconfigure": {
+        "data": {
+          "api_key": "API-Schlüssel"
+        },
+        "data_description": {
+          "api_key": "Dein ai.noris.de API-Schlüssel (der 'sk-bf-...'-Wert, der im x-bf-vk-Header gesendet wird)."
+        },
+        "description": "Aktualisiere den API-Schlüssel für die Authentifizierung bei ai.noris.de."
+      }
+    }
+  },
+  "config_subentries": {
+    "conversation": {
+      "abort": {
+        "cannot_connect": "Verbindung fehlgeschlagen",
+        "entry_not_loaded": "Der Haupteintrag der Integration ist nicht geladen. Bitte stelle sicher, dass die Integration geladen ist, bevor du sie konfigurierst.",
+        "reconfigure_successful": "Neukonfiguration war erfolgreich",
+        "unknown": "Unerwarteter Fehler"
+      },
+      "entry_type": "Konversationsagent",
+      "initiate_flow": {
+        "user": "Konversationsagent hinzufügen"
+      },
+      "step": {
+        "init": {
+          "data": {
+            "llm_hass_api": "Home Assistant steuern",
+            "model": "Modell",
+            "prompt": "Anweisungen"
+          },
+          "data_description": {
+            "llm_hass_api": "Wähle aus, welche Werkzeuge das Modell nutzen darf, um mit deinen Geräten und Entitäten zu interagieren.",
+            "model": "Das vLLM-Modell für den Konversationsagenten.",
+            "prompt": "Lege fest, wie das LLM antworten soll. Dies kann ein Template sein."
+          },
+          "description": "Konversationsagent konfigurieren"
+        },
+        "reconfigure": {
+          "data": {
+            "llm_hass_api": "Home Assistant steuern",
+            "prompt": "Anweisungen"
+          },
+          "data_description": {
+            "llm_hass_api": "Wähle aus, welche Werkzeuge das Modell nutzen darf, um mit deinen Geräten und Entitäten zu interagieren.",
+            "prompt": "Lege fest, wie das LLM antworten soll. Dies kann ein Template sein."
+          },
+          "description": "Aktualisiere den Prompt und die Home Assistant LLM-APIs für diesen Konversationsagenten. Erstelle einen neuen Agenten, um ein anderes Modell zu verwenden."
+        }
+      }
+    },
+    "ai_task_data": {
+      "abort": {
+        "cannot_connect": "Verbindung fehlgeschlagen",
+        "entry_not_loaded": "Der Haupteintrag der Integration ist nicht geladen. Bitte stelle sicher, dass die Integration geladen ist, bevor du sie konfigurierst.",
+        "unknown": "Unerwarteter Fehler"
+      },
+      "entry_type": "KI-Aufgabe",
+      "initiate_flow": {
+        "user": "KI-Aufgabe hinzufügen"
+      },
+      "step": {
+        "init": {
+          "data": {
+            "model": "Modell"
+          },
+          "data_description": {
+            "model": "Das vLLM-Modell zur Datengenerierung."
+          },
+          "description": "KI-Aufgabe konfigurieren"
+        }
+      }
+    }
+  }
+}

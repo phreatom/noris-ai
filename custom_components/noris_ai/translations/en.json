@@ -1,0 +1,104 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Service is already configured",
+      "reauth_successful": "Re-authentication was successful",
+      "reconfigure_successful": "Re-configuration was successful"
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication",
+      "unknown": "Unexpected error"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "api_key": "API key"
+        },
+        "data_description": {
+          "api_key": "Your ai.noris.de API key (the 'sk-bf-...' value sent in the x-bf-vk header)."
+        }
+      },
+      "reauth_confirm": {
+        "data": {
+          "api_key": "API key"
+        },
+        "data_description": {
+          "api_key": "Your ai.noris.de API key (the 'sk-bf-...' value sent in the x-bf-vk header)."
+        },
+        "description": "The noris AI API key is no longer valid. Please enter a new one."
+      },
+      "reconfigure": {
+        "data": {
+          "api_key": "API key"
+        },
+        "data_description": {
+          "api_key": "Your ai.noris.de API key (the 'sk-bf-...' value sent in the x-bf-vk header)."
+        },
+        "description": "Update the API key used to authenticate with ai.noris.de."
+      }
+    }
+  },
+  "config_subentries": {
+    "conversation": {
+      "abort": {
+        "cannot_connect": "Failed to connect",
+        "entry_not_loaded": "The main integration entry is not loaded. Please ensure the integration is loaded before configuring.",
+        "reconfigure_successful": "Re-configuration was successful",
+        "unknown": "Unexpected error"
+      },
+      "entry_type": "Conversation agent",
+      "initiate_flow": {
+        "user": "Add conversation agent"
+      },
+      "step": {
+        "init": {
+          "data": {
+            "llm_hass_api": "Control Home Assistant",
+            "model": "Model",
+            "prompt": "Instructions"
+          },
+          "data_description": {
+            "llm_hass_api": "Select which tools the model can use to interact with your devices and entities.",
+            "model": "The vLLM model to use for the conversation agent.",
+            "prompt": "Instruct how the LLM should respond. This can be a template."
+          },
+          "description": "Configure the conversation agent"
+        },
+        "reconfigure": {
+          "data": {
+            "llm_hass_api": "Control Home Assistant",
+            "prompt": "Instructions"
+          },
+          "data_description": {
+            "llm_hass_api": "Select which tools the model can use to interact with your devices and entities.",
+            "prompt": "Instruct how the LLM should respond. This can be a template."
+          },
+          "description": "Update the prompt and the Home Assistant LLM APIs for this conversation agent. Create a new conversation agent to use a different model."
+        }
+      }
+    },
+    "ai_task_data": {
+      "abort": {
+        "cannot_connect": "Failed to connect",
+        "entry_not_loaded": "The main integration entry is not loaded. Please ensure the integration is loaded before configuring.",
+        "unknown": "Unexpected error"
+      },
+      "entry_type": "AI task",
+      "initiate_flow": {
+        "user": "Add AI task"
+      },
+      "step": {
+        "init": {
+          "data": {
+            "model": "Model"
+          },
+          "data_description": {
+            "model": "The vLLM model to use to generate data."
+          },
+          "description": "Configure an AI task"
+        }
+      }
+    }
+  }
+}
