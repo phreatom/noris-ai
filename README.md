@@ -8,9 +8,8 @@ devices) and an **AI Task** entity (structured or free-text data generation for
 automations), built on the OpenAI-compatible Chat Completions API of the
 gateway.
 
-Only the **`vllm/*`** models are offered in the model picker, so no
-prompt data is routed to external providers. Rerankers and small draft models
-are filtered out automatically.
+Only the **`vllm/*`** models are offered in the model picker. Rerankers and
+small draft models are filtered out automatically.
 
 ## Features
 
@@ -19,10 +18,7 @@ are filtered out automatically.
   the model call entities via tool-calling.
 - 🧩 **AI Task entity** — generate free text or structured (JSON) data from
   automations and scripts, e.g. summaries, classifications, sensor values.
-- 🏠 **`vllm/*` only** — only `vllm/*` models hosted on the ai.noris.de
-  infrastructure are selectable; anthropic-routed models are hidden so no data
-  is routed to external providers.
-- 🧠 **Reasoning models** — `<think>…</think>` output and vLLM `reasoning` /
+- 🧠 **Reasoning models** — `thinking` output and vLLM `reasoning` /
   `reasoning_content` fields are surfaced as separate thinking content.
 - 🌍 **Translations** — English and German UI.
 
