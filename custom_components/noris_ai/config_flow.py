@@ -43,10 +43,10 @@ STEP_API_KEY_DATA_SCHEMA = vol.Schema({vol.Required(CONF_API_KEY): str})
 
 
 def _is_selectable_model(model_id: str) -> bool:
-    """Return True for on-prem vLLM chat models worth offering to the user.
+    """Return True for vLLM chat models worth offering to the user.
 
     Only ``vllm/*`` models are exposed (the anthropic-routed models are hidden
-    so no data leaves the on-prem infrastructure). Rerankers and the tiny
+    so no data is routed to external providers). Rerankers and the tiny
     ``harrier-oss`` draft model are not usable as chat/agent models.
     """
     if not model_id.startswith("vllm/"):
