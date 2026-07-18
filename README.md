@@ -1,23 +1,57 @@
 # noris AI for Home Assistant
 
-A custom Home Assistant integration for the **ai.noris.de** LLM gateway.
+A custom Home Assistant integration for the **[ai.noris.de](https://ai.noris.de)** LLM
+gateway.
 
-It adds a **Conversation agent** (for Assist / voice control of your devices)
-and an **AI Task** entity (structured or free-text data generation for
+It adds a **Conversation agent** (for Assist / voice &amp; text control of your
+devices) and an **AI Task** entity (structured or free-text data generation for
 automations), built on the OpenAI-compatible Chat Completions API of the
 gateway.
 
 Only the on-premise **`vllm/*`** models are offered in the model picker, so no
-prompt data is routed to external providers. Reranker and small draft models
+prompt data is routed to external providers. Rerankers and small draft models
 are filtered out automatically.
+
+## Features
+
+- 💬 **Conversation agent** — use it in Assist (voice or text pipelines) to chat
+  or control your smart home. Optionally enable *Control Home Assistant* to let
+  the model call entities via tool-calling.
+- 🧩 **AI Task entity** — generate free text or structured (JSON) data from
+  automations and scripts, e.g. summaries, classifications, sensor values.
+- 🏠 **On-prem only** — only `vllm/*` models hosted on the ai.noris.de
+  infrastructure are selectable; anthropic-routed models are hidden so no data
+  leaves the on-prem environment.
+- 🧠 **Reasoning models** — `<think>…</think>` output and vLLM `reasoning` /
+  `reasoning_content` fields are surfaced as separate thinking content.
+- 🌍 **Translations** — English and German UI.
+
+## Requirements
+
+- A Home Assistant instance running **2026.7.0** or newer.
+- An **API key** for ai.noris.de (see below).
+- At least one working `vllm/*` chat model available on your gateway.
+
+## Obtaining an API key
+
+The ai.noris.de gateway authenticates requests with a custom `x-bf-vk` header
+that carries an API key in the form `sk-bf-…`.
+
+1. Get an API key from your ai.noris.de account / administrator.
+2. Copy the full `sk-bf-…` value — you will paste it into the integration.
+
+> **Note:** the key is sent in the `x-bf-vk` header (handled automatically by
+> this integration). It is stored encrypted in Home Assistant's credential
+> store and never logged.
 
 ## Installation
 
-### HACS (custom repository)
+### HACS (recommended)
 
-1. HACS → ⋮ → *Custom repositories*
-2. Add `https://github.com/fsippel/noris-ai`, category **Integration**
-3. Install **noris AI**, then restart Home Assistant
+1. In Home Assistant, open **HACS** → ⋮ (top right) → *Custom repositories*.
+2. Add `https://github.com/fsippel/noris-ai`, category **Integration**.
+3. Search for **noris AI** and install it.
+4. Restart Home Assistant.
 
 ### Manual
 
@@ -26,23 +60,150 @@ Copy the `custom_components/noris_ai` folder into your Home Assistant
 
 ## Configuration
 
-1. *Settings → Devices & Services → Add Integration → noris AI*
-2. Enter your API key (the `sk-bf-...` value; it is sent in the `x-bf-vk`
-   header). The key is validated against `https://ai.noris.de/v1/models`.
-3. On the integration, use **Add conversation agent** and/or **Add AI task**,
-   pick a `vllm/*` model, and (for the conversation agent) optionally enable
-   *Control Home Assistant* to allow device control via tool-calling.
+1. Go to **Settings → Devices &amp; Services → Add Integration** and search for
+   **noris AI**.
+2. Paste your API key (the `sk-bf-…` value). The key is validated against
+   `https://ai.noris.de/v1/models`.
+3. Once added, open the integration card and use **Add conversation agent**
+   and/or **Add AI task** to create entities:
+   - Pick a `vllm/*` model from the dropdown (loaded live from the gateway).
+   - For the conversation agent, optionally enable **Control Home Assistant**
+     to allow device control via tool-calling.
+
+## Using the conversation agent
+
+A conversation agent can be used in any **Assist pipeline** (voice or text):
+
+1. **Settings → Assist pipelines** → create or edit a pipeline.
+2. Set the *Conversation agent* to your noris AI agent.
+3. Talk or type — the agent responds and, if *Control Home Assistant* is
+   enabled, can turn devices on/off, read states, etc.
+
+Expose the entities you want the agent to control under
+**Settings → Assist → Exposed entities**.
+
+## Using AI Task
+
+The AI Task entity generates data you can use in automations, scripts and
+template sensors. Call the `ai_task.generate_data` action with natural-language
+instructions and (optionally) a `structure` to get structured JSON back.
+
+### Example 1 — simple text generation
+
+Generate a friendly notification when a window is left open:
+
+```yaml
+automation:
+  - alias: "Window left open reminder"
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.living_room_window
+        to: "on"
+        for:
+          minutes: 15
+    actions:
+      - action: ai_task.generate_data
+        data:
+          task_name: "window open reminder"
+          instructions: >
+            Write a short, friendly reminder to close the living room window.
+            Mention it has been open for 15 minutes.
+        response_variable: generated_text
+      - action: notify.mobile_app
+        data:
+          message: "{{ generated_text.data }}"
+```
+
+### Example 2 — structured output (template sensor)
+
+Classify sensor readings into a structured response and expose the result as a
+sensor:
+
+```yaml
+template:
+  - triggers:
+      - trigger: time_pattern
+        minutes: "/30"
+    actions:
+      - action: ai_task.generate_data
+        data:
+          task_name: "{{ this.entity_id }}"
+          instructions: >
+            Given the outdoor temperature of
+            {{ states('sensor.outdoor_temperature') }} °C and the indoor
+            temperature of {{ states('sensor.indoor_temperature') }} °C,
+            classify the overall comfort level and suggest an action.
+          structure:
+            comfort_level:
+              selector:
+                select:
+                  options: ["cold", "cool", "comfortable", "warm", "hot"]
+            suggestion:
+              selector:
+                text:
+        response_variable: result
+    sensor:
+      - name: "Comfort level"
+        state: "{{ result.data.comfort_level }}"
+        attributes:
+          suggestion: "{{ result.data.suggestion }}"
+```
+
+### Example 3 — summarize a long text
+
+Summarize the day's events into a short digest:
+
+```yaml
+script:
+  - alias: "Daily digest"
+    sequence:
+      - action: ai_task.generate_data
+        data:
+          task_name: "daily digest"
+          instructions: >
+            Summarize the following events into 3 bullet points:
+            {{ states('input_text.todays_events') }}
+        response_variable: digest
+      - action: notify.persistent_notification
+        data:
+          title: "📋 Daily digest"
+          message: "{{ digest.data }}"
+```
+
+> ℹ️ Set a **preferred AI task entity** under **Settings → AI** so automations
+> can omit the entity ID. See the
+> [AI Task docs](https://www.home-assistant.io/integrations/ai_task/) for the
+> full action reference.
+
+## Available models
+
+- The model dropdown is populated **live** from `https://ai.noris.de/v1/models`
+  when you add an agent/task.
+- Only `vllm/*` models are listed. Models whose ID contains `reranker` or
+  `harrier` (draft models) are filtered out.
+- **Tool-calling** (device control) requires a model that supports function
+  calling. Larger instruct models (e.g. `vllm/gpt-oss-120b`,
+  `vllm/gemma-4-31b-it`) work best.
+- Even temporarily unavailable models remain selectable; availability changes
+  over time and errors are reported cleanly at runtime.
 
 ## Notes
 
 - **Authentication:** the gateway uses a custom `x-bf-vk` header instead of the
   standard `Authorization: Bearer` scheme. This is handled by the integration.
 - **TLS:** certificates are verified via Home Assistant's shared HTTP client.
-- **Tool-calling:** device control requires a model that supports function
-  calling. Larger instruct models (e.g. `vllm/gpt-oss-120b`,
-  `vllm/gemma-4-31b-it`) work best; rerankers are not selectable.
-- **Reasoning models:** `<think>...</think>` output and vLLM `reasoning` /
+- **Reasoning models:** `<think>…</think>` output and vLLM `reasoning` /
   `reasoning_content` fields are surfaced as separate thinking content.
+
+## Troubleshooting
+
+| Symptom | Likely cause / fix |
+|---------|--------------------|
+| **Invalid authentication** during setup | Wrong/expired API key. Re-enter the full `sk-bf-…` value. |
+| **Failed to connect** | Gateway unreachable or network issue. Check connectivity to `ai.noris.de`. |
+| Empty answer from a reasoning model | `max_tokens` too small — the model spent all tokens "thinking". Use a model with a higher token budget or reduce the task complexity. |
+| Tool call fails / unexpected JSON | Some models wrap tool arguments in Markdown fences. The integration strips these automatically; if it still fails, try a different model. |
+| Model not in the dropdown | Only `vllm/*` chat models are shown; rerankers and draft models are hidden by design. |
 
 ## License
 
@@ -51,3 +212,5 @@ Apache License 2.0 — see [LICENSE](LICENSE).
 ## Disclaimer
 
 Community integration, not affiliated with or supported by noris network AG.
+"noris" is a trademark of noris network AG; this project uses the name only to
+describe the service it integrates with.
