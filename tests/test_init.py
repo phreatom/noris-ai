@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 from openai import APIConnectionError, AuthenticationError, PermissionDeniedError
@@ -80,9 +80,13 @@ async def test_update_listener_reloads(
     """Changing entry data reloads the entry."""
     await setup_integration(hass, mock_config_entry)
 
-    hass.config_entries.async_update_entry(
-        mock_config_entry, data={**mock_config_entry.data, "api_key": "sk-bf-other"}
-    )
-    await hass.async_block_till_done()
+    with patch.object(
+        hass.config_entries, "async_reload", wraps=hass.config_entries.async_reload
+    ) as mock_reload:
+        hass.config_entries.async_update_entry(
+            mock_config_entry, data={**mock_config_entry.data, "api_key": "sk-bf-other"}
+        )
+        await hass.async_block_till_done()
 
+    mock_reload.assert_awaited_once_with(mock_config_entry.entry_id)
     assert mock_config_entry.state is ConfigEntryState.LOADED
