@@ -99,6 +99,39 @@
           "description": "Configure an AI task"
         }
       }
+    },
+    "stt": {
+      "abort": {
+        "cannot_connect": "Failed to connect",
+        "entry_not_loaded": "The main integration entry is not loaded. Please ensure the integration is loaded before configuring.",
+        "no_audio_models": "The gateway does not currently offer a model that can transcribe audio.",
+        "reconfigure_successful": "Re-configuration was successful",
+        "unknown": "Unexpected error"
+      },
+      "entry_type": "Speech-to-text",
+      "initiate_flow": {
+        "user": "Add speech-to-text"
+      },
+      "step": {
+        "init": {
+          "data": {
+            "model": "Model"
+          },
+          "data_description": {
+            "model": "The vLLM model used to transcribe speech."
+          },
+          "description": "Configure speech-to-text"
+        },
+        "reconfigure": {
+          "data": {
+            "model": "Model"
+          },
+          "data_description": {
+            "model": "The vLLM model used to transcribe speech."
+          },
+          "description": "Change the model used to transcribe speech."
+        }
+      }
     }
   }
 }

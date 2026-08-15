@@ -10,14 +10,14 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.noris_ai.config_flow import _is_chat_model, _is_stt_model
-from custom_components.noris_ai.const import DOMAIN
+from custom_components.noris_ai.const import DOMAIN, STT_SUBENTRY_TYPE
 from homeassistant import config_entries
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.setup import async_setup_component
 
-from .conftest import fake_model
+from .conftest import FakeModelList, fake_model, setup_integration
 
 
 def _auth_error() -> AuthenticationError:
@@ -206,3 +206,77 @@ def test_stt_filter_tolerates_null_hugging_face_id() -> None:
 def test_stt_filter_rejects_chat_models() -> None:
     """Text models are not offered as transcription engines."""
     assert _is_stt_model(fake_model("vllm/qsu/glm-5-2")) is False
+
+
+async def test_stt_subentry_offers_only_audio_models(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The STT dropdown lists Voxtral and nothing else."""
+    await setup_integration(hass, mock_config_entry)
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, STT_SUBENTRY_TYPE),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    options = result["data_schema"].schema["model"].config["options"]
+    assert [option["value"] for option in options] == [
+        "vllm/qsu/voxtral-small-24b-2507"
+    ]
+
+
+async def test_stt_subentry_creates_entity(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Choosing a model creates the subentry titled after it."""
+    await setup_integration(hass, mock_config_entry)
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, STT_SUBENTRY_TYPE),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"model": "vllm/qsu/voxtral-small-24b-2507"}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "vllm/qsu/voxtral-small-24b-2507"
+
+
+async def test_stt_subentry_aborts_without_audio_models(
+    hass: HomeAssistant,
+    mock_client: AsyncMock,
+    mock_config_entry: MockConfigEntry,
+    default_models: list,
+) -> None:
+    """With no audio model on the gateway, say so instead of an empty dropdown."""
+    await setup_integration(hass, mock_config_entry)
+    mock_client.models.list = MagicMock(
+        return_value=FakeModelList([m for m in default_models if "voxtral" not in m.id])
+    )
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, STT_SUBENTRY_TYPE),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "no_audio_models"
+
+
+async def test_conversation_subentry_excludes_audio_models(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: AsyncMock
+) -> None:
+    """Voxtral must not be offered as a conversation model."""
+    await setup_integration(hass, mock_config_entry)
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, "conversation"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    options = result["data_schema"].schema["model"].config["options"]
+    values = [option["value"] for option in options]
+    assert "vllm/qsu/voxtral-small-24b-2507" not in values
+    assert "vllm/release/gpt-oss-120b" in values

@@ -36,6 +36,7 @@ from .const import (
     CONVERSATION_SUBENTRY_TYPE,
     DOMAIN,
     RECOMMENDED_CONVERSATION_OPTIONS,
+    STT_SUBENTRY_TYPE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -116,6 +117,7 @@ class NorisAIConfigFlow(ConfigFlow, domain=DOMAIN):
         return {
             CONVERSATION_SUBENTRY_TYPE: ConversationFlowHandler,
             AI_TASK_SUBENTRY_TYPE: AITaskFlowHandler,
+            STT_SUBENTRY_TYPE: SttFlowHandler,
         }
 
     async def async_step_user(
@@ -366,5 +368,93 @@ class AITaskFlowHandler(ConfigSubentryFlow):
                         ),
                     ),
                 }
+            ),
+        )
+
+
+class SttFlowHandler(ConfigSubentryFlow):
+    """Handle the speech-to-text subentry flow."""
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """User flow to create a speech-to-text entity."""
+        return await self.async_step_init(user_input)
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Manage speech-to-text configuration."""
+        if self._get_entry().state is not ConfigEntryState.LOADED:
+            return self.async_abort(reason="entry_not_loaded")
+
+        if user_input is not None:
+            return self.async_create_entry(
+                title=user_input[CONF_MODEL], data=user_input
+            )
+
+        try:
+            model_options = await _fetch_model_options(self._get_entry(), _is_stt_model)
+        except OpenAIError:
+            return self.async_abort(reason="cannot_connect")
+        except Exception:
+            _LOGGER.exception("Unexpected exception")
+            return self.async_abort(reason="unknown")
+
+        if not model_options:
+            return self.async_abort(reason="no_audio_models")
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_MODEL): SelectSelector(
+                        SelectSelectorConfig(
+                            options=model_options,
+                            mode=SelectSelectorMode.DROPDOWN,
+                            sort=True,
+                        ),
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Change the transcription model of an existing entity."""
+        subentry = self._get_reconfigure_subentry()
+
+        if user_input is not None:
+            return self.async_update_and_abort(
+                self._get_entry(), subentry, data=user_input
+            )
+
+        try:
+            model_options = await _fetch_model_options(self._get_entry(), _is_stt_model)
+        except OpenAIError:
+            return self.async_abort(reason="cannot_connect")
+        except Exception:
+            _LOGGER.exception("Unexpected exception")
+            return self.async_abort(reason="unknown")
+
+        if not model_options:
+            return self.async_abort(reason="no_audio_models")
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(CONF_MODEL): SelectSelector(
+                            SelectSelectorConfig(
+                                options=model_options,
+                                mode=SelectSelectorMode.DROPDOWN,
+                                sort=True,
+                            ),
+                        ),
+                    }
+                ),
+                subentry.data,
             ),
         )
