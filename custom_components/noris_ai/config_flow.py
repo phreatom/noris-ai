@@ -99,7 +99,7 @@ class NorisAIConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_auth"
             except OpenAIError:
                 errors["base"] = "cannot_connect"
-            except Exception:  # noqa: BLE001
+            except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
@@ -132,7 +132,7 @@ class NorisAIConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_auth"
             except OpenAIError:
                 errors["base"] = "cannot_connect"
-            except Exception:  # noqa: BLE001
+            except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
@@ -161,7 +161,7 @@ class NorisAIConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_auth"
             except OpenAIError:
                 errors["base"] = "cannot_connect"
-            except Exception:  # noqa: BLE001
+            except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
@@ -204,7 +204,7 @@ class ConversationFlowHandler(ConfigSubentryFlow):
             model_options = await _fetch_model_options(self._get_entry())
         except OpenAIError:
             return self.async_abort(reason="cannot_connect")
-        except Exception:  # noqa: BLE001
+        except Exception:
             _LOGGER.exception("Unexpected exception")
             return self.async_abort(reason="unknown")
 
@@ -313,7 +313,7 @@ class AITaskFlowHandler(ConfigSubentryFlow):
             model_options = await _fetch_model_options(self._get_entry())
         except OpenAIError:
             return self.async_abort(reason="cannot_connect")
-        except Exception:  # noqa: BLE001
+        except Exception:
             _LOGGER.exception("Unexpected exception")
             return self.async_abort(reason="unknown")
 

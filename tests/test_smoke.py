@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock
 
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from .conftest import setup_integration
 

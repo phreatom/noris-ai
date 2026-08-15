@@ -2,7 +2,7 @@
 
 import logging
 
-from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT  # noqa: F401
+from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT
 from homeassistant.helpers import llm
 
 DOMAIN = "noris_ai"

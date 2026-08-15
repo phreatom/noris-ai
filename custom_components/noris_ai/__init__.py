@@ -2,12 +2,7 @@
 
 from __future__ import annotations
 
-from openai import (
-    AsyncOpenAI,
-    AuthenticationError,
-    OpenAIError,
-    PermissionDeniedError,
-)
+from openai import AsyncOpenAI, AuthenticationError, OpenAIError, PermissionDeniedError
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, Platform

@@ -8,10 +8,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.config_entries import ConfigSubentryData
-from homeassistant.const import CONF_API_KEY, CONF_MODEL
-from homeassistant.core import HomeAssistant
-from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.noris_ai.const import (
@@ -19,6 +15,10 @@ from custom_components.noris_ai.const import (
     CONVERSATION_SUBENTRY_TYPE,
     DOMAIN,
 )
+from homeassistant.config_entries import ConfigSubentryData
+from homeassistant.const import CONF_API_KEY, CONF_MODEL
+from homeassistant.core import HomeAssistant
+from homeassistant.setup import async_setup_component
 
 CHAT_MODEL = "vllm/release/gpt-oss-120b"
 

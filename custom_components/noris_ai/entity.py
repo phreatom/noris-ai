@@ -119,7 +119,7 @@ def _strip_markdown_fence(text: str) -> str:
     if stripped.startswith("```"):
         # Drop the opening fence line (may include a language tag like "json").
         nl = stripped.find("\n")
-        stripped = stripped[nl + 1:] if nl != -1 else stripped[3:]
+        stripped = stripped[nl + 1 :] if nl != -1 else stripped[3:]
         # Drop a trailing closing fence.
         if stripped.rstrip().endswith("```"):
             stripped = stripped.rstrip()[:-3]
