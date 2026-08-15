@@ -4,9 +4,10 @@ A custom Home Assistant integration for the **[ai.noris.de](https://ai.noris.de)
 gateway.
 
 It adds a **Conversation agent** (for Assist / voice &amp; text control of your
-devices) and an **AI Task** entity (structured or free-text data generation for
-automations), built on the OpenAI-compatible Chat Completions API of the
-gateway.
+devices), an **AI Task** entity (structured or free-text data generation for
+automations), and a **Speech-to-text** entity (transcribe Assist voice
+commands), built on the OpenAI-compatible Chat Completions and transcription
+APIs of the gateway.
 
 Only the **`vllm/*`** models are offered in the model picker. Rerankers and
 small draft models are filtered out automatically.
@@ -21,6 +22,9 @@ small draft models are filtered out automatically.
 - 🧠 **Reasoning models** — `thinking` output and vLLM `reasoning` /
   `reasoning_content` fields are surfaced as separate thinking content.
 - 🌍 **Translations** — English and German UI.
+- 🎙️ **Speech-to-text** — transcribe Assist voice commands with an audio model on the gateway
+  (currently Voxtral). Add a *Speech-to-text* entity and select it as the STT engine of a voice
+  pipeline.
 
 ## Requirements
 
@@ -60,11 +64,13 @@ Copy the `custom_components/noris_ai` folder into your Home Assistant
    **noris AI**.
 2. Paste your API key (the `sk-bf-…` value). The key is validated against
    `https://ai.noris.de/v1/models`.
-3. Once added, open the integration card and use **Add conversation agent**
-   and/or **Add AI task** to create entities:
+3. Once added, open the integration card and use **Add conversation agent**,
+   **Add AI task**, and/or **Add speech-to-text** to create entities:
    - Pick a `vllm/*` model from the dropdown (loaded live from the gateway).
    - For the conversation agent, optionally enable **Control Home Assistant**
      to allow device control via tool-calling.
+   - For speech-to-text, only models the gateway can transcribe with are
+     listed — see [Speech-to-text](#speech-to-text) below.
 
 ## Using the conversation agent
 
@@ -190,6 +196,36 @@ script:
 - **TLS:** certificates are verified via Home Assistant's shared HTTP client.
 - **Reasoning models:** `<think>…</think>` output and vLLM `reasoning` /
   `reasoning_content` fields are surfaced as separate thinking content.
+
+## Speech-to-text
+
+The integration can transcribe voice commands using the gateway's audio models.
+
+1. Go to **Settings → Devices & Services → noris AI** and add a **Speech-to-text** entity.
+2. Pick an audio model. Only models that can transcribe are listed — today that is
+   `vllm/qsu/voxtral-small-24b-2507` (Mistral's Voxtral Small 24B).
+3. Go to **Settings → Voice assistants**, open your pipeline and set **Speech-to-text** to the new
+   entity.
+
+Supported languages are the ones Voxtral documents: German, English, Spanish, French, Italian,
+Dutch, Portuguese and Hindi. Audio is sent as 16 kHz mono PCM wrapped in a WAV container.
+
+> **Note on model detection:** the gateway's `/v1/models` catalog does not report audio capability
+> correctly, so the integration recognises audio models by name (Voxtral, Whisper and similar). If
+> your gateway gains an audio model that is not listed, open an issue.
+
+### Text-to-speech is not available
+
+ai.noris.de does not currently expose a text-to-speech endpoint. Requests to `/v1/audio/speech`
+are rejected by the gateway itself:
+
+```
+400 "speech is not supported by vllm provider"
+```
+
+This is a limitation of the gateway, not of this integration — no integration code can work around
+it. Until noris configures a speech-capable provider, pair this integration's speech-to-text with a
+separate TTS engine such as Home Assistant's local **Piper**.
 
 ## Troubleshooting
 
