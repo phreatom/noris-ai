@@ -9,12 +9,15 @@ from openai import APIConnectionError, AuthenticationError
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.noris_ai.config_flow import _is_chat_model, _is_stt_model
 from custom_components.noris_ai.const import DOMAIN
 from homeassistant import config_entries
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.setup import async_setup_component
+
+from .conftest import fake_model
 
 
 def _auth_error() -> AuthenticationError:
@@ -130,3 +133,76 @@ async def test_reconfigure_updates_key(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert mock_config_entry.data[CONF_API_KEY] == "sk-bf-new"
+
+
+def test_chat_filter_accepts_text_models() -> None:
+    """Ordinary vLLM chat models remain selectable."""
+    assert _is_chat_model(fake_model("vllm/release/gpt-oss-120b")) is True
+
+
+def test_chat_filter_rejects_rerankers_and_embeddings() -> None:
+    """Non-text output modalities are not chat models."""
+    assert (
+        _is_chat_model(
+            fake_model("vllm/release/bge-reranker-v2-m3", output_type="rerank")
+        )
+        is False
+    )
+    assert (
+        _is_chat_model(
+            fake_model("vllm/release/harrier-oss-v1-0.6b", output_type="embeddings")
+        )
+        is False
+    )
+
+
+def test_chat_filter_rejects_audio_models() -> None:
+    """Voxtral is an audio model and must not appear in chat dropdowns."""
+    model = fake_model(
+        "vllm/qsu/voxtral-small-24b-2507",
+        hugging_face_id="mistralai/Voxtral-Small-24B-2507",
+    )
+
+    assert _is_chat_model(model) is False
+
+
+def test_chat_filter_rejects_other_providers() -> None:
+    """Only vllm/* models are offered, per existing policy."""
+    assert _is_chat_model(fake_model("something/else")) is False
+
+
+def test_chat_filter_falls_back_without_metadata() -> None:
+    """With no output_modalities, the old name heuristic still applies."""
+    assert (
+        _is_chat_model(fake_model("vllm/release/gpt-oss-120b", output_type=None))
+        is True
+    )
+    assert (
+        _is_chat_model(fake_model("vllm/release/bge-reranker-v2-m3", output_type=None))
+        is False
+    )
+
+
+def test_stt_filter_accepts_voxtral_by_hugging_face_id() -> None:
+    """Audio capability is detected from hugging_face_id."""
+    model = fake_model(
+        "vllm/qsu/some-opaque-name",
+        hugging_face_id="mistralai/Voxtral-Small-24B-2507",
+    )
+
+    assert _is_stt_model(model) is True
+
+
+def test_stt_filter_accepts_whisper_by_id() -> None:
+    """A future Whisper deployment is picked up from the model id."""
+    assert _is_stt_model(fake_model("vllm/release/whisper-large-v3")) is True
+
+
+def test_stt_filter_tolerates_null_hugging_face_id() -> None:
+    """A null hugging_face_id must not raise; many gateway models have none."""
+    assert _is_stt_model(fake_model("vllm/release/gpt-oss-120b")) is False
+
+
+def test_stt_filter_rejects_chat_models() -> None:
+    """Text models are not offered as transcription engines."""
+    assert _is_stt_model(fake_model("vllm/qsu/glm-5-2")) is False

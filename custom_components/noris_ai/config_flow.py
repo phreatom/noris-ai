@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 import logging
 from typing import Any
 
@@ -31,6 +31,7 @@ from homeassistant.helpers.selector import (
 from . import _create_client, _validate_api_key
 from .const import (
     AI_TASK_SUBENTRY_TYPE,
+    AUDIO_MODEL_PATTERN,
     CONF_PROMPT,
     CONVERSATION_SUBENTRY_TYPE,
     DOMAIN,
@@ -42,29 +43,61 @@ _LOGGER = logging.getLogger(__name__)
 STEP_API_KEY_DATA_SCHEMA = vol.Schema({vol.Required(CONF_API_KEY): str})
 
 
-def _is_selectable_model(model_id: str) -> bool:
-    """Return True for vLLM chat models worth offering to the user.
+def _model_output_types(model: Any) -> set[str]:
+    """Return the output modality types the gateway reports for a model.
 
-    Only ``vllm/*`` models are exposed. Rerankers and the tiny
-    ``harrier-oss`` draft model are not usable as chat/agent models.
+    These fields are not part of the OpenAI SDK's Model type, so they arrive in
+    ``model_extra``. An empty set means the gateway reported nothing usable.
     """
-    if not model_id.startswith("vllm/"):
-        return False
-    lowered = model_id.lower()
-    if "reranker" in lowered:
-        return False
-    if "harrier" in lowered:
-        return False
-    return True
+    extra = getattr(model, "model_extra", None) or {}
+    modalities = extra.get("output_modalities") or []
+    return {m.get("type") for m in modalities if isinstance(m, dict)}
 
 
-async def _fetch_model_options(entry: ConfigEntry) -> list[SelectOptionDict]:
-    """Fetch and filter selectable models from the gateway."""
+def _is_audio_model(model: Any) -> bool:
+    """Return True for models that can transcribe audio.
+
+    See AUDIO_MODEL_PATTERN: the catalog's modality metadata is wrong for
+    Voxtral, so known audio families are matched by name. ``hugging_face_id`` is
+    the stronger signal but is null for many models, hence the fallback.
+    """
+    extra = getattr(model, "model_extra", None) or {}
+    hugging_face_id = extra.get("hugging_face_id") or ""
+    return bool(
+        AUDIO_MODEL_PATTERN.search(hugging_face_id)
+        or AUDIO_MODEL_PATTERN.search(model.id)
+    )
+
+
+def _is_chat_model(model: Any) -> bool:
+    """Return True for vLLM models usable as a chat or agent model."""
+    if not model.id.startswith("vllm/"):
+        return False
+    if _is_audio_model(model):
+        return False
+    output_types = _model_output_types(model)
+    if output_types:
+        return "text" in output_types
+    # No metadata from the gateway: fall back to the original name heuristic
+    # so an upstream catalog change cannot empty the dropdown.
+    lowered = model.id.lower()
+    return "reranker" not in lowered and "harrier" not in lowered
+
+
+def _is_stt_model(model: Any) -> bool:
+    """Return True for vLLM models usable as a transcription engine."""
+    return model.id.startswith("vllm/") and _is_audio_model(model)
+
+
+async def _fetch_model_options(
+    entry: ConfigEntry, predicate: Callable[[Any], bool]
+) -> list[SelectOptionDict]:
+    """Fetch models from the gateway and keep those matching the predicate."""
     client: AsyncOpenAI = entry.runtime_data
     return [
         SelectOptionDict(value=model.id, label=model.id)
         async for model in client.with_options(timeout=10.0).models.list()
-        if _is_selectable_model(model.id)
+        if predicate(model)
     ]
 
 
@@ -201,7 +234,9 @@ class ConversationFlowHandler(ConfigSubentryFlow):
             )
 
         try:
-            model_options = await _fetch_model_options(self._get_entry())
+            model_options = await _fetch_model_options(
+                self._get_entry(), _is_chat_model
+            )
         except OpenAIError:
             return self.async_abort(reason="cannot_connect")
         except Exception:
@@ -310,7 +345,9 @@ class AITaskFlowHandler(ConfigSubentryFlow):
             )
 
         try:
-            model_options = await _fetch_model_options(self._get_entry())
+            model_options = await _fetch_model_options(
+                self._get_entry(), _is_chat_model
+            )
         except OpenAIError:
             return self.async_abort(reason="cannot_connect")
         except Exception:
