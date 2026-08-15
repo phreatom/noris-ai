@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterable
+import io
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+import wave
 
 import httpx
 from openai import (
@@ -114,6 +116,14 @@ async def test_transcription_success(
     assert filename == "audio.wav"
     assert content_type == "audio/wav"
     assert payload.startswith(b"RIFF")
+    # Pin the WAV argument mapping: metadata.sample_rate.value and
+    # metadata.channel.value must land in the right wave.Wave_write setters,
+    # not transposed (both are accepted uncomplaining by `wave`, producing a
+    # corrupt-but-valid RIFF file).
+    with wave.open(io.BytesIO(payload), "rb") as wav_file:
+        assert wav_file.getnchannels() == 1
+        assert wav_file.getsampwidth() == 2
+        assert wav_file.getframerate() == 16000
 
 
 async def test_empty_stream_skips_the_api(
@@ -220,6 +230,32 @@ async def test_auth_error_starts_reauth(
     assert result.result is stt.SpeechResultState.ERROR
     flows = hass.config_entries.flow.async_progress()
     assert any(flow["context"]["source"] == "reauth" for flow in flows)
+
+
+async def test_stream_read_failure_returns_error_result(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A stream that raises mid-read must yield ERROR, never propagate.
+
+    The controller proved this path with a throwaway test and deleted it,
+    leaving the method's own docstring promise ("never raises") permanently
+    unguarded. This replaces that test.
+    """
+
+    async def _broken_stream() -> AsyncIterable[bytes]:
+        yield PCM[:800]
+        raise ConnectionResetError("connection reset by peer")
+
+    mock_client.audio.transcriptions.create = AsyncMock()
+    await setup_integration(hass, mock_config_entry)
+
+    result = await _entity(hass, mock_config_entry).async_process_audio_stream(
+        _metadata(), _broken_stream()
+    )
+
+    assert result.result is stt.SpeechResultState.ERROR
+    assert result.text is None
+    mock_client.audio.transcriptions.create.assert_not_called()
 
 
 async def test_language_without_region(

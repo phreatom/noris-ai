@@ -87,8 +87,11 @@ def default_models() -> list[Any]:
             "vllm/qsu/voxtral-small-24b-2507",
             hugging_face_id="mistralai/Voxtral-Small-24B-2507",
         ),
-        fake_model("vllm/release/bge-reranker-v2-m3", output_type="rerank"),
-        fake_model("vllm/release/harrier-oss-v1-0.6b", output_type="embeddings"),
+        # Deliberately NOT ids the legacy substring fallback ("reranker" /
+        # "harrier") would also catch: these ids must be excluded solely by
+        # output_modalities, so a broken metadata check shows up here.
+        fake_model("vllm/release/bge-m3", output_type="rerank"),
+        fake_model("vllm/release/e5-large", output_type="embeddings"),
     ]
 
 

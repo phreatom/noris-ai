@@ -11,14 +11,25 @@ import voluptuous as vol
 from homeassistant.components import ai_task
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 
 from .conftest import setup_integration
 from .test_conversation import chat_completion
 
 
-def _task_entity_id(hass: HomeAssistant) -> str:
-    """Return the single AI task entity id."""
-    return next(s.entity_id for s in hass.states.async_all() if s.domain == "ai_task")
+def _task_entity_id(hass: HomeAssistant, entry: MockConfigEntry) -> str:
+    """Return the single AI task entity id belonging to this config entry.
+
+    Resolved through the entity registry rather than ``hass.states``, the
+    same pattern used by ``test_conversation.py``'s ``_conversation_entities``
+    (isolates the entity noris_ai's platform actually created).
+    """
+    registry = er.async_get(hass)
+    return next(
+        entity.entity_id
+        for entity in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if entity.domain == "ai_task"
+    )
 
 
 async def test_generate_free_text(
@@ -33,7 +44,7 @@ async def test_generate_free_text(
     result = await ai_task.async_generate_data(
         hass,
         task_name="wetter",
-        entity_id=_task_entity_id(hass),
+        entity_id=_task_entity_id(hass, mock_config_entry),
         instructions="Wie warm ist es?",
     )
 
@@ -52,12 +63,22 @@ async def test_generate_structured_data(
     result = await ai_task.async_generate_data(
         hass,
         task_name="wetter",
-        entity_id=_task_entity_id(hass),
+        entity_id=_task_entity_id(hass, mock_config_entry),
         instructions="Wie warm ist es?",
         structure=vol.Schema({vol.Required("temperatur"): int}),
     )
 
     assert result.data == {"temperatur": 21}
+    # The mock returns valid JSON regardless of what was requested, so
+    # without this the `if structure:` branch that builds response_format
+    # in entity.py could be deleted outright and this test would still pass.
+    response_format = mock_client.chat.completions.create.call_args.kwargs[
+        "response_format"
+    ]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["name"] == "wetter"
+    assert response_format["json_schema"]["strict"] is True
+    assert "temperatur" in response_format["json_schema"]["schema"]["properties"]
 
 
 async def test_generate_structured_data_invalid_json(
@@ -73,7 +94,7 @@ async def test_generate_structured_data_invalid_json(
         await ai_task.async_generate_data(
             hass,
             task_name="wetter",
-            entity_id=_task_entity_id(hass),
+            entity_id=_task_entity_id(hass, mock_config_entry),
             instructions="Wie warm ist es?",
             structure=vol.Schema({vol.Required("temperatur"): int}),
         )

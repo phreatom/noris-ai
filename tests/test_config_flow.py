@@ -10,7 +10,11 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.noris_ai.config_flow import _is_chat_model, _is_stt_model
-from custom_components.noris_ai.const import DOMAIN, STT_SUBENTRY_TYPE
+from custom_components.noris_ai.const import (
+    AI_TASK_SUBENTRY_TYPE,
+    DOMAIN,
+    STT_SUBENTRY_TYPE,
+)
 from homeassistant import config_entries
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -135,23 +139,46 @@ async def test_reconfigure_updates_key(
     assert mock_config_entry.data[CONF_API_KEY] == "sk-bf-new"
 
 
+async def test_subentry_flow_aborts_when_entry_not_loaded(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A subentry flow against a NOT_LOADED entry aborts rather than erroring.
+
+    Only the conversation handler is exercised here: ConversationFlowHandler,
+    AITaskFlowHandler and SttFlowHandler all guard their async_step_init with
+    the identical ``if self._get_entry().state is not ConfigEntryState.LOADED``
+    check, so one handler is enough to cover the shared guard.
+    """
+    await async_setup_component(hass, "homeassistant", {})
+    mock_config_entry.add_to_hass(hass)
+    assert mock_config_entry.state is config_entries.ConfigEntryState.NOT_LOADED
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, "conversation"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "entry_not_loaded"
+
+
 def test_chat_filter_accepts_text_models() -> None:
     """Ordinary vLLM chat models remain selectable."""
     assert _is_chat_model(fake_model("vllm/release/gpt-oss-120b")) is True
 
 
 def test_chat_filter_rejects_rerankers_and_embeddings() -> None:
-    """Non-text output modalities are not chat models."""
+    """Non-text output modalities are not chat models.
+
+    Uses ids the legacy substring fallback ("reranker" / "harrier") would NOT
+    also reject, so this only passes if the output_modalities check itself
+    excludes them.
+    """
     assert (
-        _is_chat_model(
-            fake_model("vllm/release/bge-reranker-v2-m3", output_type="rerank")
-        )
-        is False
+        _is_chat_model(fake_model("vllm/release/bge-m3", output_type="rerank")) is False
     )
     assert (
-        _is_chat_model(
-            fake_model("vllm/release/harrier-oss-v1-0.6b", output_type="embeddings")
-        )
+        _is_chat_model(fake_model("vllm/release/e5-large", output_type="embeddings"))
         is False
     )
 
@@ -265,6 +292,38 @@ async def test_stt_subentry_aborts_without_audio_models(
     assert result["reason"] == "no_audio_models"
 
 
+async def test_stt_subentry_reconfigure_changes_model(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Reconfiguring the STT subentry offers the current model and updates it.
+
+    SttFlowHandler.async_step_reconfigure had zero coverage: a reviewer's
+    ``raise RuntimeError`` as its first statement still passed the full suite.
+    """
+    await setup_integration(hass, mock_config_entry)
+    subentry_id = next(
+        subentry_id
+        for subentry_id, subentry in mock_config_entry.subentries.items()
+        if subentry.subentry_type == STT_SUBENTRY_TYPE
+    )
+
+    result = await mock_config_entry.start_subentry_reconfigure_flow(hass, subentry_id)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    model_key = next(k for k in result["data_schema"].schema if k == "model")
+    assert model_key.description["suggested_value"] == "vllm/qsu/voxtral-small-24b-2507"
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"model": "vllm/qsu/voxtral-small-24b-2507"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    updated = mock_config_entry.subentries[subentry_id]
+    assert updated.data["model"] == "vllm/qsu/voxtral-small-24b-2507"
+
+
 async def test_conversation_subentry_excludes_audio_models(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: AsyncMock
 ) -> None:
@@ -273,6 +332,28 @@ async def test_conversation_subentry_excludes_audio_models(
 
     result = await hass.config_entries.subentries.async_init(
         (mock_config_entry.entry_id, "conversation"),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    options = result["data_schema"].schema["model"].config["options"]
+    values = [option["value"] for option in options]
+    assert "vllm/qsu/voxtral-small-24b-2507" not in values
+    assert "vllm/release/gpt-oss-120b" in values
+
+
+async def test_ai_task_subentry_excludes_audio_models(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: AsyncMock
+) -> None:
+    """Voxtral must not be offered as an AI Task model either.
+
+    Only the conversation half of this fix was covered; the branch's
+    headline claim is that Voxtral disappears from BOTH the conversation and
+    AI Task dropdowns.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, AI_TASK_SUBENTRY_TYPE),
         context={"source": config_entries.SOURCE_USER},
     )
 
