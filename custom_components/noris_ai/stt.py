@@ -70,7 +70,7 @@ class NorisAISttEntity(stt.SpeechToTextEntity):
     @property
     def supported_languages(self) -> list[str]:
         """Return the languages the transcription model supports."""
-        return STT_SUPPORTED_LANGUAGES
+        return list(STT_SUPPORTED_LANGUAGES)
 
     @property
     def supported_formats(self) -> list[stt.AudioFormats]:
@@ -105,22 +105,29 @@ class NorisAISttEntity(stt.SpeechToTextEntity):
         Never raises: a failure is reported as an ERROR result so the pipeline
         can tell the user, rather than propagating into the voice satellite.
         """
-        audio = b""
-        async for chunk in stream:
-            audio += chunk
+        try:
+            audio = bytearray()
+            async for chunk in stream:
+                audio.extend(chunk)
 
-        if not audio:
-            LOGGER.debug("Empty audio stream, nothing to transcribe")
+            if not audio:
+                LOGGER.debug("Empty audio stream, nothing to transcribe")
+                return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
+
+            # The gateway rejects headerless PCM with "Invalid or unsupported
+            # audio file", so the samples need a WAV container.
+            wav_audio = pcm_to_wav(
+                bytes(audio),
+                metadata.sample_rate.value,
+                metadata.bit_rate.value // 8,
+                metadata.channel.value,
+            )
+        except Exception as err:
+            # The pipeline stream and the WAV encoder can both fail in ways
+            # this integration cannot enumerate; any of them must still
+            # yield ERROR, never a raise.
+            LOGGER.error("Error reading or encoding the audio stream: %s", err)
             return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
-
-        # The gateway rejects headerless PCM with "Invalid or unsupported
-        # audio file", so the samples need a WAV container.
-        wav_audio = pcm_to_wav(
-            audio,
-            metadata.sample_rate.value,
-            metadata.bit_rate.value // 8,
-            metadata.channel.value,
-        )
 
         client = self.entry.runtime_data
 

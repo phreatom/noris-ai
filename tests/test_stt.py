@@ -7,10 +7,16 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import httpx
-from openai import APIConnectionError, APIStatusError, AuthenticationError
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+)
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.noris_ai.const import STT_TIMEOUT
 from homeassistant.components import stt
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -75,6 +81,7 @@ async def test_entity_is_created(
     assert "de-DE" in entity.supported_languages
     assert entity.supported_formats == [stt.AudioFormats.WAV]
     assert entity.supported_codecs == [stt.AudioCodecs.PCM]
+    assert entity.supported_bit_rates == [stt.AudioBitRates.BITRATE_16]
     assert entity.supported_sample_rates == [stt.AudioSampleRates.SAMPLERATE_16000]
     assert entity.supported_channels == [stt.AudioChannels.CHANNEL_MONO]
 
@@ -87,6 +94,9 @@ async def test_transcription_success(
         return_value=SimpleNamespace(text="Schalte das Licht ein.")
     )
     await setup_integration(hass, mock_config_entry)
+    # Setup itself calls with_options (to validate the API key); reset so the
+    # assertion below only sees the transcription call.
+    mock_client.with_options.reset_mock()
 
     result = await _entity(hass, mock_config_entry).async_process_audio_stream(
         _metadata(), _stream(PCM[:800], PCM[800:])
@@ -94,6 +104,8 @@ async def test_transcription_success(
 
     assert result.result is stt.SpeechResultState.SUCCESS
     assert result.text == "Schalte das Licht ein."
+
+    mock_client.with_options.assert_called_once_with(timeout=STT_TIMEOUT)
 
     kwargs = mock_client.audio.transcriptions.create.call_args.kwargs
     assert kwargs["model"] == "vllm/qsu/voxtral-small-24b-2507"
@@ -143,6 +155,23 @@ async def test_api_error_returns_error_result(
     request = httpx.Request("POST", "https://ai.noris.de/v1/audio/transcriptions")
     mock_client.audio.transcriptions.create = AsyncMock(
         side_effect=APIConnectionError(request=request)
+    )
+    await setup_integration(hass, mock_config_entry)
+
+    result = await _entity(hass, mock_config_entry).async_process_audio_stream(
+        _metadata(), _stream(PCM)
+    )
+
+    assert result.result is stt.SpeechResultState.ERROR
+
+
+async def test_timeout_returns_error_result(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A stalled gateway fails the pipeline rather than hanging it."""
+    request = httpx.Request("POST", "https://ai.noris.de/v1/audio/transcriptions")
+    mock_client.audio.transcriptions.create = AsyncMock(
+        side_effect=APITimeoutError(request=request)
     )
     await setup_integration(hass, mock_config_entry)
 
