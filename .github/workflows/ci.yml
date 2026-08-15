@@ -31,9 +31,15 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
+          # These three checks cannot pass yet: the brands icon PR for
+          # noris_ai hasn't been accepted upstream, and the repository has no
+          # topics and issues disabled. Drop each from this list as it's
+          # satisfied instead of leaving the job permanently red.
+          ignore: "brands topics issues"
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
