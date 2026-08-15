@@ -47,6 +47,14 @@ def test_decode_tool_arguments_raises_on_garbage() -> None:
         _decode_tool_arguments("not json at all")
 
 
+def test_decode_tool_arguments_raises_on_invalid_fenced_json() -> None:
+    """Fenced but invalid JSON takes a different error path than unfenced garbage."""
+    # This exercises the branch at entity.py:144-147, where the second parse fails
+    # after stripping succeeds. The error message will differ from the unfenced case.
+    with pytest.raises(HomeAssistantError, match="Unexpected tool argument"):
+        _decode_tool_arguments("```json\n{not valid}\n```")
+
+
 def test_split_thinking_extracts_think_tags() -> None:
     """Inline <think> markup is split out of the visible content."""
     cleaned, thinking = _split_thinking("<think>hmm</think>Das Licht ist an.")
@@ -66,6 +74,19 @@ def test_split_thinking_only_thinking() -> None:
 
     assert cleaned is None
     assert thinking == "hmm"
+
+
+def test_split_thinking_multiple_think_blocks() -> None:
+    """Multiple <think> blocks are extracted and joined with newlines."""
+    cleaned, thinking = _split_thinking("<think>first</think>Text<think>second</think>")
+
+    assert cleaned == "Text"
+    assert thinking == "first\n\nsecond"
+
+
+def test_split_thinking_with_none() -> None:
+    """None input passes through untouched."""
+    assert _split_thinking(None) == (None, None)
 
 
 def test_extract_thinking_prefers_reasoning_field() -> None:
@@ -89,6 +110,32 @@ def test_extract_thinking_falls_back_to_inline_markup() -> None:
     message = SimpleNamespace(content="<think>hmm</think>Antwort", model_extra={})
 
     assert _extract_thinking(message) == ("Antwort", "hmm")
+
+
+def test_extract_thinking_reasoning_beats_reasoning_content() -> None:
+    """When both reasoning fields exist, ``reasoning`` takes precedence."""
+    message = SimpleNamespace(
+        content="Antwort",
+        model_extra={"reasoning": "A", "reasoning_content": "B"},
+    )
+
+    assert _extract_thinking(message) == ("Antwort", "A")
+
+
+def test_extract_thinking_reasoning_field_suppresses_inline_markup() -> None:
+    """When reasoning field is present, inline markup is not parsed.
+
+    The content is returned verbatim, retaining the literal <think> tags.
+    This is intentional — the reasoning field takes absolute precedence
+    over any parsing of the content string.
+    """
+    message = SimpleNamespace(
+        content="<think>B</think>Antwort",
+        model_extra={"reasoning": "A"},
+    )
+
+    # Content is returned verbatim with the <think> tags still present
+    assert _extract_thinking(message) == ("<think>B</think>Antwort", "A")
 
 
 def test_format_structure_output_builds_strict_schema() -> None:
