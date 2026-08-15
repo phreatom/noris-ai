@@ -14,6 +14,7 @@ from custom_components.noris_ai.const import (
     AI_TASK_SUBENTRY_TYPE,
     CONVERSATION_SUBENTRY_TYPE,
     DOMAIN,
+    STT_SUBENTRY_TYPE,
 )
 from homeassistant.config_entries import ConfigSubentryData
 from homeassistant.const import CONF_API_KEY, CONF_MODEL
@@ -21,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 
 CHAT_MODEL = "vllm/release/gpt-oss-120b"
+AUDIO_MODEL = "vllm/qsu/voxtral-small-24b-2507"
 
 
 @pytest.fixture(autouse=True)
@@ -114,7 +116,7 @@ def mock_client(default_models: list[Any]) -> Iterator[AsyncMock]:
 
 @pytest.fixture
 def mock_config_entry() -> MockConfigEntry:
-    """Return a config entry with a conversation and an AI task subentry."""
+    """Return a config entry with conversation, AI task, and STT subentries."""
     return MockConfigEntry(
         domain=DOMAIN,
         title="noris AI",
@@ -130,6 +132,12 @@ def mock_config_entry() -> MockConfigEntry:
                 data={CONF_MODEL: CHAT_MODEL},
                 subentry_type=AI_TASK_SUBENTRY_TYPE,
                 title=CHAT_MODEL,
+                unique_id=None,
+            ),
+            ConfigSubentryData(
+                data={CONF_MODEL: AUDIO_MODEL},
+                subentry_type=STT_SUBENTRY_TYPE,
+                title=AUDIO_MODEL,
                 unique_id=None,
             ),
         ],

@@ -4,7 +4,7 @@
   "after_dependencies": ["assist_pipeline", "intent"],
   "codeowners": ["@fsippel"],
   "config_flow": true,
-  "dependencies": ["conversation", "ai_task"],
+  "dependencies": ["conversation", "ai_task", "stt"],
   "documentation": "https://github.com/fsippel/noris-ai",
   "integration_type": "service",
   "iot_class": "cloud_polling",
