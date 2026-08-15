@@ -49,7 +49,8 @@
       },
       "entry_type": "Konversationsagent",
       "initiate_flow": {
-        "user": "Konversationsagent hinzufügen"
+        "reconfigure": "Konversations-Agent neu konfigurieren",
+        "user": "Konversations-Agent hinzufügen"
       },
       "step": {
         "init": {
@@ -86,6 +87,7 @@
       },
       "entry_type": "KI-Aufgabe",
       "initiate_flow": {
+        "reconfigure": "KI-Aufgabe neu konfigurieren",
         "user": "KI-Aufgabe hinzufügen"
       },
       "step": {
@@ -110,6 +112,7 @@
       },
       "entry_type": "Spracherkennung",
       "initiate_flow": {
+        "reconfigure": "Spracherkennung neu konfigurieren",
         "user": "Spracherkennung hinzufügen"
       },
       "step": {

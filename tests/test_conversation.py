@@ -10,7 +10,11 @@ from unittest.mock import AsyncMock
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.noris_ai.const import CONVERSATION_SUBENTRY_TYPE, DOMAIN
+from custom_components.noris_ai.const import (
+    CONVERSATION_SUBENTRY_TYPE,
+    DEFAULT_CONVERSATION_NAME,
+    DOMAIN,
+)
 from custom_components.noris_ai.entity import MAX_TOOL_ITERATIONS
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigSubentryData
@@ -64,7 +68,7 @@ def mock_config_entry_with_llm_api() -> MockConfigEntry:
             ConfigSubentryData(
                 data={CONF_MODEL: CHAT_MODEL, CONF_LLM_HASS_API: [llm.LLM_API_ASSIST]},
                 subentry_type=CONVERSATION_SUBENTRY_TYPE,
-                title=CHAT_MODEL,
+                title=DEFAULT_CONVERSATION_NAME,
                 unique_id=None,
             ),
         ],

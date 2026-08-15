@@ -13,6 +13,9 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.noris_ai.const import (
     AI_TASK_SUBENTRY_TYPE,
     CONVERSATION_SUBENTRY_TYPE,
+    DEFAULT_AI_TASK_NAME,
+    DEFAULT_CONVERSATION_NAME,
+    DEFAULT_STT_NAME,
     DOMAIN,
     STT_SUBENTRY_TYPE,
 )
@@ -128,19 +131,19 @@ def mock_config_entry() -> MockConfigEntry:
             ConfigSubentryData(
                 data={CONF_MODEL: CHAT_MODEL},
                 subentry_type=CONVERSATION_SUBENTRY_TYPE,
-                title=CHAT_MODEL,
+                title=DEFAULT_CONVERSATION_NAME,
                 unique_id=None,
             ),
             ConfigSubentryData(
                 data={CONF_MODEL: CHAT_MODEL},
                 subentry_type=AI_TASK_SUBENTRY_TYPE,
-                title=CHAT_MODEL,
+                title=DEFAULT_AI_TASK_NAME,
                 unique_id=None,
             ),
             ConfigSubentryData(
                 data={CONF_MODEL: AUDIO_MODEL},
                 subentry_type=STT_SUBENTRY_TYPE,
-                title=AUDIO_MODEL,
+                title=DEFAULT_STT_NAME,
                 unique_id=None,
             ),
         ],

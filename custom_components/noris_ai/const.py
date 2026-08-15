@@ -34,6 +34,15 @@ RECOMMENDED_CONVERSATION_OPTIONS = {
 
 STT_SUBENTRY_TYPE = "stt"
 
+# Subentry titles. These become the device name, and Home Assistant slugifies
+# the device name into the entity id, so they must read well in both places.
+# The chosen model is surfaced separately as ``DeviceInfo.model``, which the UI
+# renders beneath the name — titling a subentry with the raw model id instead
+# leaves the device card with no indication of what the device actually is.
+DEFAULT_CONVERSATION_NAME = "noris AI Conversation Agent"
+DEFAULT_AI_TASK_NAME = "noris AI Task"
+DEFAULT_STT_NAME = "noris AI Speech-to-text"
+
 # Seconds to wait for a transcription before failing the pipeline. The gateway
 # answers a five-second utterance in well under a second; this bound exists so a
 # stalled gateway does not hang the voice satellite.

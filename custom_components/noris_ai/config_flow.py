@@ -34,6 +34,9 @@ from .const import (
     AUDIO_MODEL_PATTERN,
     CONF_PROMPT,
     CONVERSATION_SUBENTRY_TYPE,
+    DEFAULT_AI_TASK_NAME,
+    DEFAULT_CONVERSATION_NAME,
+    DEFAULT_STT_NAME,
     DOMAIN,
     RECOMMENDED_CONVERSATION_OPTIONS,
     STT_SUBENTRY_TYPE,
@@ -106,7 +109,7 @@ class NorisAIConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for noris AI."""
 
     VERSION = 1
-    MINOR_VERSION = 1
+    MINOR_VERSION = 2
 
     @classmethod
     @callback
@@ -232,7 +235,7 @@ class ConversationFlowHandler(ConfigSubentryFlow):
             if not user_input.get(CONF_LLM_HASS_API):
                 user_input.pop(CONF_LLM_HASS_API, None)
             return self.async_create_entry(
-                title=user_input[CONF_MODEL], data=user_input
+                title=DEFAULT_CONVERSATION_NAME, data=user_input
             )
 
         try:
@@ -342,9 +345,7 @@ class AITaskFlowHandler(ConfigSubentryFlow):
             return self.async_abort(reason="entry_not_loaded")
 
         if user_input is not None:
-            return self.async_create_entry(
-                title=user_input[CONF_MODEL], data=user_input
-            )
+            return self.async_create_entry(title=DEFAULT_AI_TASK_NAME, data=user_input)
 
         try:
             model_options = await _fetch_model_options(
@@ -389,9 +390,7 @@ class SttFlowHandler(ConfigSubentryFlow):
             return self.async_abort(reason="entry_not_loaded")
 
         if user_input is not None:
-            return self.async_create_entry(
-                title=user_input[CONF_MODEL], data=user_input
-            )
+            return self.async_create_entry(title=DEFAULT_STT_NAME, data=user_input)
 
         try:
             model_options = await _fetch_model_options(self._get_entry(), _is_stt_model)

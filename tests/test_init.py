@@ -9,10 +9,19 @@ from openai import APIConnectionError, AuthenticationError, PermissionDeniedErro
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from homeassistant.config_entries import ConfigEntryState
+from custom_components.noris_ai.const import (
+    CONVERSATION_SUBENTRY_TYPE,
+    DEFAULT_CONVERSATION_NAME,
+    DEFAULT_STT_NAME,
+    DOMAIN,
+    STT_SUBENTRY_TYPE,
+)
+from homeassistant.config_entries import ConfigEntryState, ConfigSubentryData
+from homeassistant.const import CONF_API_KEY, CONF_MODEL
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
-from .conftest import setup_integration
+from .conftest import AUDIO_MODEL, CHAT_MODEL, setup_integration
 
 
 def _auth_error(status: int) -> AuthenticationError | PermissionDeniedError:
@@ -90,3 +99,82 @@ async def test_update_listener_reloads(
 
     mock_reload.assert_awaited_once_with(mock_config_entry.entry_id)
     assert mock_config_entry.state is ConfigEntryState.LOADED
+
+
+async def test_migrate_retitles_legacy_model_id_subentries(
+    hass: HomeAssistant, mock_client: AsyncMock
+) -> None:
+    """A 1.1 entry whose subentries are titled with the raw model id is retitled."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="noris AI",
+        minor_version=1,
+        data={CONF_API_KEY: "sk-bf-test"},
+        subentries_data=[
+            ConfigSubentryData(
+                data={CONF_MODEL: CHAT_MODEL},
+                subentry_type=CONVERSATION_SUBENTRY_TYPE,
+                title=CHAT_MODEL,
+                unique_id=None,
+            ),
+            ConfigSubentryData(
+                data={CONF_MODEL: AUDIO_MODEL},
+                subentry_type=STT_SUBENTRY_TYPE,
+                title=AUDIO_MODEL,
+                unique_id=None,
+            ),
+        ],
+    )
+
+    await setup_integration(hass, entry)
+
+    titles = {s.subentry_type: s.title for s in entry.subentries.values()}
+    assert titles[CONVERSATION_SUBENTRY_TYPE] == DEFAULT_CONVERSATION_NAME
+    assert titles[STT_SUBENTRY_TYPE] == DEFAULT_STT_NAME
+    assert entry.minor_version == 2
+
+
+async def test_migrate_keeps_user_chosen_titles(
+    hass: HomeAssistant, mock_client: AsyncMock
+) -> None:
+    """A title the user picked is never clobbered by the migration."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="noris AI",
+        minor_version=1,
+        data={CONF_API_KEY: "sk-bf-test"},
+        subentries_data=[
+            ConfigSubentryData(
+                data={CONF_MODEL: CHAT_MODEL},
+                subentry_type=CONVERSATION_SUBENTRY_TYPE,
+                title="Küchen-Assistent",
+                unique_id=None,
+            ),
+        ],
+    )
+
+    await setup_integration(hass, entry)
+
+    assert next(iter(entry.subentries.values())).title == "Küchen-Assistent"
+    assert entry.minor_version == 2
+
+
+async def test_entity_ids_derive_from_friendly_titles(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Entity ids are slugified from the subentry title, so they read well.
+
+    This is what makes the rename worth doing: the device name drives both the
+    UI label and the entity id.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    registry = er.async_get(hass)
+    ids = {
+        e.domain: e.entity_id
+        for e in er.async_entries_for_config_entry(registry, mock_config_entry.entry_id)
+    }
+
+    assert ids["conversation"] == "conversation.noris_ai_conversation_agent"
+    assert ids["stt"] == "stt.noris_ai_speech_to_text"
+    assert ids["ai_task"] == "ai_task.noris_ai_task"

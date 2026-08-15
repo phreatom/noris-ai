@@ -49,6 +49,7 @@
       },
       "entry_type": "Conversation agent",
       "initiate_flow": {
+        "reconfigure": "Reconfigure conversation agent",
         "user": "Add conversation agent"
       },
       "step": {
@@ -86,6 +87,7 @@
       },
       "entry_type": "AI task",
       "initiate_flow": {
+        "reconfigure": "Reconfigure AI task",
         "user": "Add AI task"
       },
       "step": {
@@ -110,7 +112,8 @@
       },
       "entry_type": "Speech-to-text",
       "initiate_flow": {
-        "user": "Add speech-to-text"
+        "reconfigure": "Reconfigure speech-to-text service",
+        "user": "Add speech-to-text service"
       },
       "step": {
         "init": {

@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.noris_ai.config_flow import _is_chat_model, _is_stt_model
 from custom_components.noris_ai.const import (
     AI_TASK_SUBENTRY_TYPE,
+    DEFAULT_STT_NAME,
     DOMAIN,
     STT_SUBENTRY_TYPE,
 )
@@ -268,7 +269,7 @@ async def test_stt_subentry_creates_entity(
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["title"] == "vllm/qsu/voxtral-small-24b-2507"
+    assert result["title"] == DEFAULT_STT_NAME
 
 
 async def test_stt_subentry_aborts_without_audio_models(
