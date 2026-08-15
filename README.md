@@ -4,9 +4,10 @@ A custom Home Assistant integration for the **[ai.noris.de](https://ai.noris.de)
 gateway.
 
 It adds a **Conversation agent** (for Assist / voice &amp; text control of your
-devices) and an **AI Task** entity (structured or free-text data generation for
-automations), built on the OpenAI-compatible Chat Completions API of the
-gateway.
+devices), an **AI Task** entity (structured or free-text data generation for
+automations), and a **Speech-to-text** entity (transcribe Assist voice
+commands), built on the OpenAI-compatible Chat Completions and transcription
+APIs of the gateway.
 
 Only the **`vllm/*`** models are offered in the model picker. Rerankers and
 small draft models are filtered out automatically.
@@ -63,11 +64,13 @@ Copy the `custom_components/noris_ai` folder into your Home Assistant
    **noris AI**.
 2. Paste your API key (the `sk-bf-…` value). The key is validated against
    `https://ai.noris.de/v1/models`.
-3. Once added, open the integration card and use **Add conversation agent**
-   and/or **Add AI task** to create entities:
+3. Once added, open the integration card and use **Add conversation agent**,
+   **Add AI task**, and/or **Add speech-to-text** to create entities:
    - Pick a `vllm/*` model from the dropdown (loaded live from the gateway).
    - For the conversation agent, optionally enable **Control Home Assistant**
      to allow device control via tool-calling.
+   - For speech-to-text, only models the gateway can transcribe with are
+     listed — see [Speech-to-text](#speech-to-text) below.
 
 ## Using the conversation agent
 

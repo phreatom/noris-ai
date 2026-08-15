@@ -48,6 +48,7 @@ noun *Markise*.
 | `response_format=text` | `200`, but the gateway double-wraps the JSON body *inside* the `text` field | **Must** use the default `json` format and read `.text` |
 | `language=de` + `prompt=…` | Accepted, `200` | `language` is passed; `prompt` showed no observable effect and is omitted (YAGNI) |
 | Audio via `chat/completions` `input_audio` | `200`, audio understood, but output rambled and hallucinated: `"... Kunde. Transkribiere wortlich." **Vorgang:** … auf 50% lucht.` | **Do not** copy Google's LLM-with-prompt approach |
+| Audio posted with a text model (`vllm/release/gemma-4-31b-it`) | `404` — `provider API error (status 404)`, body `{"detail":"Not Found"}` | A non-audio model yields 404, so the entity can give a model-specific error |
 
 The last row is the key architectural divergence. Google routes STT through `generate_content`
 because Gemini exposes no transcription endpoint. noris exposes a real one, and it is both more
