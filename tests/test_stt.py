@@ -18,10 +18,11 @@ from openai import (
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.noris_ai.const import STT_TIMEOUT
+from custom_components.noris_ai.const import DOMAIN, STT_TIMEOUT
 from homeassistant.components import stt
+from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .conftest import setup_integration
 
@@ -272,3 +273,51 @@ async def test_language_without_region(
     )
 
     assert mock_client.audio.transcriptions.create.call_args.kwargs["language"] == "en"
+
+
+async def test_device_identity_matches_across_platforms(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Every platform's device carries the same identity fields.
+
+    The device-info block is shared through NorisAISubentryEntity; this pins the
+    fields so the extraction cannot silently change any of them.
+
+    ``identifiers`` and ``unique_id`` get an exact-value assertion, not merely
+    "is not None": drift in either is exactly what silently re-registers a
+    user's device and orphans their entities, and a reviewer's mutation battery
+    showed the previous "is not None" checks did not catch that. The entity
+    registry's ``unique_id`` is checked too, since the device identifiers alone
+    don't pin what NorisAISubentryEntity.__init__ writes to
+    ``self._attr_unique_id``.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    device_registry = dr.async_get(hass)
+    devices = dr.async_entries_for_config_entry(
+        device_registry, mock_config_entry.entry_id
+    )
+
+    assert len(devices) == 4
+    devices_by_subentry_id = {
+        next(iter(device.config_entries_subentries[mock_config_entry.entry_id])): device
+        for device in devices
+    }
+    assert devices_by_subentry_id.keys() == mock_config_entry.subentries.keys()
+
+    entity_registry = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(
+        entity_registry, mock_config_entry.entry_id
+    )
+    entities_by_subentry_id = {e.config_subentry_id: e for e in entities}
+
+    for subentry_id, subentry in mock_config_entry.subentries.items():
+        device = devices_by_subentry_id[subentry_id]
+        assert device.identifiers == {(DOMAIN, subentry_id)}
+        assert device.manufacturer == "noris network AG"
+        assert device.entry_type is dr.DeviceEntryType.SERVICE
+        assert device.model == subentry.data[CONF_MODEL]
+        assert device.name == subentry.title
+
+        entity_entry = entities_by_subentry_id[subentry_id]
+        assert entity_entry.unique_id == subentry_id

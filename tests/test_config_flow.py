@@ -9,12 +9,18 @@ from openai import APIConnectionError, AuthenticationError
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.noris_ai.config_flow import _is_chat_model, _is_stt_model
+from custom_components.noris_ai.config_flow import (
+    _is_chat_model,
+    _is_stt_model,
+    _is_tts_model,
+)
 from custom_components.noris_ai.const import (
     AI_TASK_SUBENTRY_TYPE,
     DEFAULT_STT_NAME,
+    DEFAULT_TTS_NAME,
     DOMAIN,
     STT_SUBENTRY_TYPE,
+    TTS_SUBENTRY_TYPE,
 )
 from homeassistant import config_entries
 from homeassistant.const import CONF_API_KEY
@@ -342,6 +348,35 @@ async def test_conversation_subentry_excludes_audio_models(
     assert "vllm/release/gpt-oss-120b" in values
 
 
+def test_tts_filter_accepts_speech_models() -> None:
+    """Both speech models on the gateway are offered as TTS engines."""
+    assert (
+        _is_tts_model(fake_model("Kokoro-TTS/release/kokoro-tts-german-martin")) is True
+    )
+    assert _is_tts_model(fake_model("Cosyvoice3/release/cosyvoice3-0.5b-rl")) is True
+
+
+def test_tts_filter_rejects_chat_and_transcription_models() -> None:
+    """Chat models and the transcription model are not speech synthesisers."""
+    assert _is_tts_model(fake_model("vllm/release/gpt-oss-120b")) is False
+    assert (
+        _is_tts_model(
+            fake_model(
+                "vllm/qsu/voxtral-small-24b-2507",
+                hugging_face_id="mistralai/Voxtral-Small-24B-2507",
+            )
+        )
+        is False
+    )
+
+
+def test_speech_models_do_not_leak_into_chat_or_stt_filters() -> None:
+    """A TTS model must not be selectable as a chat or transcription model."""
+    kokoro = fake_model("Kokoro-TTS/release/kokoro-tts-german-martin")
+    assert _is_chat_model(kokoro) is False
+    assert _is_stt_model(kokoro) is False
+
+
 async def test_ai_task_subentry_excludes_audio_models(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: AsyncMock
 ) -> None:
@@ -362,3 +397,128 @@ async def test_ai_task_subentry_excludes_audio_models(
     values = [option["value"] for option in options]
     assert "vllm/qsu/voxtral-small-24b-2507" not in values
     assert "vllm/release/gpt-oss-120b" in values
+
+
+async def test_tts_subentry_offers_only_speech_models(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The TTS dropdown lists the speech models and nothing else."""
+    await setup_integration(hass, mock_config_entry)
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, TTS_SUBENTRY_TYPE),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    options = result["data_schema"].schema["model"].config["options"]
+    values = [option["value"] for option in options]
+    assert "Cosyvoice3/release/cosyvoice3-0.5b-rl" in values
+    assert "Kokoro-TTS/release/kokoro-tts-german-martin" in values
+    assert "vllm/release/gpt-oss-120b" not in values
+    assert "vllm/qsu/voxtral-small-24b-2507" not in values
+
+
+async def test_tts_subentry_creates_entity(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Choosing a model creates a subentry with the friendly title."""
+    await setup_integration(hass, mock_config_entry)
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, TTS_SUBENTRY_TYPE),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"model": "Cosyvoice3/release/cosyvoice3-0.5b-rl"}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == DEFAULT_TTS_NAME
+    assert result["data"] == {"model": "Cosyvoice3/release/cosyvoice3-0.5b-rl"}
+
+
+async def test_tts_subentry_reconfigure_changes_model(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Reconfiguring the TTS subentry offers the current model and updates it.
+
+    Mirrors test_stt_subentry_reconfigure_changes_model: TtsFlowHandler.
+    async_step_reconfigure is the identical defect a reviewer caught in the
+    STT work — a ``raise RuntimeError`` as its first statement, or deleting
+    its ``no_speech_models`` guard, left the full suite green with zero
+    coverage of this method.
+    """
+    await setup_integration(hass, mock_config_entry)
+    subentry_id = next(
+        subentry_id
+        for subentry_id, subentry in mock_config_entry.subentries.items()
+        if subentry.subentry_type == TTS_SUBENTRY_TYPE
+    )
+
+    result = await mock_config_entry.start_subentry_reconfigure_flow(hass, subentry_id)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    model_key = next(k for k in result["data_schema"].schema if k == "model")
+    assert (
+        model_key.description["suggested_value"]
+        == "Cosyvoice3/release/cosyvoice3-0.5b-rl"
+    )
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"model": "Kokoro-TTS/release/kokoro-tts-german-martin"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    updated = mock_config_entry.subentries[subentry_id]
+    assert updated.data["model"] == "Kokoro-TTS/release/kokoro-tts-german-martin"
+
+
+async def test_tts_subentry_reconfigure_aborts_without_speech_models(
+    hass: HomeAssistant,
+    mock_client: AsyncMock,
+    mock_config_entry: MockConfigEntry,
+    default_models: list,
+) -> None:
+    """Reconfigure also guards against an empty speech-model dropdown.
+
+    Pins the ``no_speech_models`` guard inside async_step_reconfigure, which
+    is a separate code path from async_step_init's identical-looking guard.
+    """
+    await setup_integration(hass, mock_config_entry)
+    subentry_id = next(
+        subentry_id
+        for subentry_id, subentry in mock_config_entry.subentries.items()
+        if subentry.subentry_type == TTS_SUBENTRY_TYPE
+    )
+    mock_client.models.list = MagicMock(
+        return_value=FakeModelList([m for m in default_models if not _is_tts_model(m)])
+    )
+
+    result = await mock_config_entry.start_subentry_reconfigure_flow(hass, subentry_id)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "no_speech_models"
+
+
+async def test_tts_subentry_aborts_without_speech_models(
+    hass: HomeAssistant,
+    mock_client: AsyncMock,
+    mock_config_entry: MockConfigEntry,
+    default_models: list,
+) -> None:
+    """With no speech model on the gateway, say so instead of an empty dropdown."""
+    await setup_integration(hass, mock_config_entry)
+    mock_client.models.list = MagicMock(
+        return_value=FakeModelList([m for m in default_models if not _is_tts_model(m)])
+    )
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, TTS_SUBENTRY_TYPE),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "no_speech_models"

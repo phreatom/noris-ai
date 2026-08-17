@@ -18,11 +18,13 @@ from .const import (
     DEFAULT_AI_TASK_NAME,
     DEFAULT_CONVERSATION_NAME,
     DEFAULT_STT_NAME,
+    DEFAULT_TTS_NAME,
     LOGGER,
     STT_SUBENTRY_TYPE,
+    TTS_SUBENTRY_TYPE,
 )
 
-PLATFORMS = [Platform.AI_TASK, Platform.CONVERSATION, Platform.STT]
+PLATFORMS = [Platform.AI_TASK, Platform.CONVERSATION, Platform.STT, Platform.TTS]
 
 # Subentries created before 1.2 were titled with the raw model id, which left
 # the device card showing no indication of what the device was.
@@ -30,6 +32,7 @@ SUBENTRY_DEFAULT_TITLES = {
     CONVERSATION_SUBENTRY_TYPE: DEFAULT_CONVERSATION_NAME,
     AI_TASK_SUBENTRY_TYPE: DEFAULT_AI_TASK_NAME,
     STT_SUBENTRY_TYPE: DEFAULT_STT_NAME,
+    TTS_SUBENTRY_TYPE: DEFAULT_TTS_NAME,
 }
 
 type NorisAIConfigEntry = ConfigEntry[AsyncOpenAI]

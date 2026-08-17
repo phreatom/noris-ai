@@ -178,3 +178,4 @@ async def test_entity_ids_derive_from_friendly_titles(
     assert ids["conversation"] == "conversation.noris_ai_conversation_agent"
     assert ids["stt"] == "stt.noris_ai_speech_to_text"
     assert ids["ai_task"] == "ai_task.noris_ai_task"
+    assert ids["tts"] == "tts.noris_ai_text_to_speech"

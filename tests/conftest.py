@@ -16,8 +16,10 @@ from custom_components.noris_ai.const import (
     DEFAULT_AI_TASK_NAME,
     DEFAULT_CONVERSATION_NAME,
     DEFAULT_STT_NAME,
+    DEFAULT_TTS_NAME,
     DOMAIN,
     STT_SUBENTRY_TYPE,
+    TTS_SUBENTRY_TYPE,
 )
 from homeassistant.config_entries import ConfigSubentryData
 from homeassistant.const import CONF_API_KEY, CONF_MODEL
@@ -26,12 +28,31 @@ from homeassistant.setup import async_setup_component
 
 CHAT_MODEL = "vllm/release/gpt-oss-120b"
 AUDIO_MODEL = "vllm/qsu/voxtral-small-24b-2507"
+SPEECH_MODEL = "Cosyvoice3/release/cosyvoice3-0.5b-rl"
 
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
     """Enable loading of this custom integration in every test."""
     return
+
+
+@pytest.fixture
+def hass_config_dir(hass_tmp_config_dir: str) -> str:
+    """Use a fresh, per-test config directory instead of the plugin's shared one.
+
+    Without this override every test shares
+    ``pytest_homeassistant_custom_component/testing_config`` as ``hass.config``,
+    including its ``tts/`` disk cache. The tts component's
+    ``async_get_media_source_audio`` path checks that disk cache *before*
+    calling the entity, keyed only on message+language+options+engine — so a
+    synthesis test run once leaves a file behind that lets an identical test
+    pass on every subsequent run without the mocked API ever being called
+    again, silently defeating the test. ``hass_tmp_config_dir`` (from the
+    plugin) copies the shared config into a pytest ``tmp_path`` that is
+    discarded after the test.
+    """
+    return hass_tmp_config_dir
 
 
 def fake_model(
@@ -90,6 +111,8 @@ def default_models() -> list[Any]:
             "vllm/qsu/voxtral-small-24b-2507",
             hugging_face_id="mistralai/Voxtral-Small-24B-2507",
         ),
+        fake_model(SPEECH_MODEL),
+        fake_model("Kokoro-TTS/release/kokoro-tts-german-martin"),
         # Deliberately NOT ids the legacy substring fallback ("reranker" /
         # "harrier") would also catch: these ids must be excluded solely by
         # output_modalities, so a broken metadata check shows up here.
@@ -122,7 +145,7 @@ def mock_client(default_models: list[Any]) -> Iterator[AsyncMock]:
 
 @pytest.fixture
 def mock_config_entry() -> MockConfigEntry:
-    """Return a config entry with conversation, AI task, and STT subentries."""
+    """Return a config entry with conversation, AI task, STT, and TTS subentries."""
     return MockConfigEntry(
         domain=DOMAIN,
         title="noris AI",
@@ -144,6 +167,12 @@ def mock_config_entry() -> MockConfigEntry:
                 data={CONF_MODEL: AUDIO_MODEL},
                 subentry_type=STT_SUBENTRY_TYPE,
                 title=DEFAULT_STT_NAME,
+                unique_id=None,
+            ),
+            ConfigSubentryData(
+                data={CONF_MODEL: SPEECH_MODEL},
+                subentry_type=TTS_SUBENTRY_TYPE,
+                title=DEFAULT_TTS_NAME,
                 unique_id=None,
             ),
         ],

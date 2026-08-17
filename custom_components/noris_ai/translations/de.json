@@ -135,6 +135,40 @@
           "description": "Ändere das Modell, das Sprache transkribiert."
         }
       }
+    },
+    "tts": {
+      "abort": {
+        "cannot_connect": "Verbindung fehlgeschlagen",
+        "entry_not_loaded": "Der Haupteintrag der Integration ist nicht geladen. Bitte stelle sicher, dass die Integration geladen ist, bevor du sie konfigurierst.",
+        "no_speech_models": "Das Gateway bietet derzeit kein Modell an, das Sprache synthetisieren kann.",
+        "reconfigure_successful": "Neukonfiguration war erfolgreich",
+        "unknown": "Unerwarteter Fehler"
+      },
+      "entry_type": "Sprachausgabe",
+      "initiate_flow": {
+        "reconfigure": "Sprachausgabe neu konfigurieren",
+        "user": "Sprachausgabe hinzufügen"
+      },
+      "step": {
+        "init": {
+          "data": {
+            "model": "Modell"
+          },
+          "data_description": {
+            "model": "Das Modell, das Sprache synthetisiert. Die Stimmen unterscheiden sich nach Sprache: die Kokoro-Stimme spricht nur Deutsch."
+          },
+          "description": "Sprachausgabe konfigurieren"
+        },
+        "reconfigure": {
+          "data": {
+            "model": "Modell"
+          },
+          "data_description": {
+            "model": "Das Modell, das Sprache synthetisiert. Die Stimmen unterscheiden sich nach Sprache: die Kokoro-Stimme spricht nur Deutsch."
+          },
+          "description": "Ändere das Modell, das Sprache synthetisiert."
+        }
+      }
     }
   }
 }

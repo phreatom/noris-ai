@@ -69,10 +69,14 @@ be used to detect audio-capable models.** See [§6](#6-model-filtering) for the 
 The metadata is reliable in the other direction: `output_modalities[].type` correctly distinguishes
 `text` from `rerank` and `embeddings`.
 
-## 3. Non-goal: TTS
+## 3. Non-goal at the time of writing: TTS
 
-Text-to-Speech is **not implementable** against this gateway, and no amount of integration code
-changes that:
+> **Superseded on 2026-08-17.** The gateway now exposes working speech models and this section's
+> conclusion no longer holds. It is kept because the reasoning explains why the STT work shipped
+> alone. See `docs/specs/2026-08-17-tts-design.md` for the text-to-speech design.
+
+When this was written, Text-to-Speech was **not implementable** against the gateway, and no amount
+of integration code would have changed that:
 
 ```
 POST /v1/audio/speech
@@ -80,16 +84,26 @@ POST /v1/audio/speech
 ```
 
 Probes with model ids naming any other speech-capable provider were also rejected, each with
-`failed to get config for provider …: not found` — nothing but `vllm` is configured on the
-gateway.
+`failed to get config for provider …: not found` — nothing but `vllm` was configured on the
+gateway at that point.
 
-The refusal is at **provider** level, not model level. noris adding a TTS model to their vLLM
-fleet would still fail, because Bifrost rejects speech for the `vllm` provider outright. Enabling
-TTS requires noris to configure an additional provider on the gateway.
+The refusal was at **provider** level, not model level. Adding a TTS model to the vLLM fleet would
+still have failed, because Bifrost rejected speech for the `vllm` provider outright. Enabling TTS
+required noris to configure an additional provider.
 
-**Decision:** ship STT only. The README states this limitation, quotes the gateway error, and
-points users at Home Assistant's local Piper for the TTS half of a pipeline. If noris ever wires
-up a speech provider, TTS becomes a small follow-up against the same `/v1/audio/speech` shape.
+**Decision at the time:** ship STT only.
+
+**What changed.** On 2026-08-17 the catalog grew from 25 to 30 models and new providers appeared —
+`Kokoro-TTS`, `Cosyvoice3` and `vibevoice-asr`. `/v1/audio/speech` now returns audio:
+
+```
+POST /v1/audio/speech  model=Kokoro-TTS/release/kokoro-tts-german-martin  → 200, 1.09 s
+POST /v1/audio/speech  model=Cosyvoice3/release/cosyvoice3-0.5b-rl       → 200, 1.95 s
+```
+
+Both return WAV / PCM s16le / 24 kHz / mono. The audio was verified as genuine speech by
+synthesising a German sentence and transcribing it back through Voxtral, which returned the input
+text verbatim.
 
 ## 4. Architecture
 

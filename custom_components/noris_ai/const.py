@@ -42,6 +42,7 @@ STT_SUBENTRY_TYPE = "stt"
 DEFAULT_CONVERSATION_NAME = "noris AI Conversation Agent"
 DEFAULT_AI_TASK_NAME = "noris AI Task"
 DEFAULT_STT_NAME = "noris AI Speech-to-text"
+DEFAULT_TTS_NAME = "noris AI Text-to-speech"
 
 # Seconds to wait for a transcription before failing the pipeline. The gateway
 # answers a five-second utterance in well under a second; this bound exists so a
@@ -88,3 +89,47 @@ STT_SUPPORTED_LANGUAGES = [
     "pt-BR",
     "hi-IN",
 ]
+
+TTS_SUBENTRY_TYPE = "tts"
+
+# Seconds to wait for speech synthesis. Measured on the live gateway: ~1.1 s for
+# a short German sentence via Kokoro, ~1.9 s via CosyVoice3. The bound exists so
+# a stalled gateway fails promptly instead of hanging a voice satellite.
+TTS_TIMEOUT = 30.0
+
+# Speech capability CANNOT be read from the model catalog. As with
+# AUDIO_MODEL_PATTERN, every audio model is stamped with the default
+# text-in/text-out chat template, so speech models are matched by name.
+# Delete this in favour of output_modalities once the catalog reports an
+# "audio" output type. Do not "simplify" this to the modality metadata
+# without re-probing /v1/models first.
+TTS_MODEL_PATTERN = re.compile(
+    r"kokoro|cosyvoice|orpheus|xtts|bark|-tts/|tts-", re.IGNORECASE
+)
+
+# The gateway REQUIRES a voice field — omitting it returns
+# 400 "voice is required for speech completion" — but ignores its value:
+# "martin", "alloy" and a nonsense string all returned byte-identical audio.
+# Each model has exactly one voice, so no voice picker is offered and this
+# placeholder is sent to satisfy the API.
+TTS_VOICE = "default"
+
+# Home Assistant matches languages by EXACT string membership, with no region
+# fallback, so each claimed language needs its regional variants declared too.
+TTS_GERMAN = ["de", "de-DE", "de-AT", "de-CH"]
+TTS_ENGLISH = ["en", "en-US", "en-GB", "en-AU", "en-CA"]
+
+# The catalog exposes no language data either, so coverage is derived from the
+# model name. Verified by round trip — synthesise, then transcribe back: the
+# German Kokoro voice mangles English phonetically ("In turn de on in de de
+# ketien in light de pliaze"), while CosyVoice3 handled German and English
+# cleanly. Only verified languages are claimed; over-claiming would produce
+# confident, wrong pronunciation rather than an honest failure to match.
+# First match wins, so an ambiguous name resolves to the narrower claim.
+TTS_LANGUAGES_BY_PATTERN = (
+    (re.compile(r"german|deutsch", re.IGNORECASE), TTS_GERMAN),
+    (re.compile(r"english|englisch", re.IGNORECASE), TTS_ENGLISH),
+    (re.compile(r"cosyvoice", re.IGNORECASE), TTS_GERMAN + TTS_ENGLISH),
+)
+TTS_DEFAULT_LANGUAGES = TTS_GERMAN + TTS_ENGLISH
+TTS_DEFAULT_LANGUAGE = "de"

@@ -37,9 +37,12 @@ from .const import (
     DEFAULT_AI_TASK_NAME,
     DEFAULT_CONVERSATION_NAME,
     DEFAULT_STT_NAME,
+    DEFAULT_TTS_NAME,
     DOMAIN,
     RECOMMENDED_CONVERSATION_OPTIONS,
     STT_SUBENTRY_TYPE,
+    TTS_MODEL_PATTERN,
+    TTS_SUBENTRY_TYPE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -93,6 +96,17 @@ def _is_stt_model(model: Any) -> bool:
     return model.id.startswith("vllm/") and _is_audio_model(model)
 
 
+def _is_tts_model(model: Any) -> bool:
+    """Return True for models that can synthesise speech.
+
+    Unlike _is_chat_model and _is_stt_model, this deliberately does NOT gate on
+    a "vllm/" prefix: the speech models live under their own providers
+    (Kokoro-TTS/, Cosyvoice3/), so requiring "vllm/" would reject every one of
+    them.
+    """
+    return bool(TTS_MODEL_PATTERN.search(model.id))
+
+
 async def _fetch_model_options(
     entry: ConfigEntry, predicate: Callable[[Any], bool]
 ) -> list[SelectOptionDict]:
@@ -121,6 +135,7 @@ class NorisAIConfigFlow(ConfigFlow, domain=DOMAIN):
             CONVERSATION_SUBENTRY_TYPE: ConversationFlowHandler,
             AI_TASK_SUBENTRY_TYPE: AITaskFlowHandler,
             STT_SUBENTRY_TYPE: SttFlowHandler,
+            TTS_SUBENTRY_TYPE: TtsFlowHandler,
         }
 
     async def async_step_user(
@@ -439,6 +454,92 @@ class SttFlowHandler(ConfigSubentryFlow):
 
         if not model_options:
             return self.async_abort(reason="no_audio_models")
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(CONF_MODEL): SelectSelector(
+                            SelectSelectorConfig(
+                                options=model_options,
+                                mode=SelectSelectorMode.DROPDOWN,
+                                sort=True,
+                            ),
+                        ),
+                    }
+                ),
+                subentry.data,
+            ),
+        )
+
+
+class TtsFlowHandler(ConfigSubentryFlow):
+    """Handle the text-to-speech subentry flow."""
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """User flow to create a text-to-speech entity."""
+        return await self.async_step_init(user_input)
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Manage text-to-speech configuration."""
+        if self._get_entry().state is not ConfigEntryState.LOADED:
+            return self.async_abort(reason="entry_not_loaded")
+
+        if user_input is not None:
+            return self.async_create_entry(title=DEFAULT_TTS_NAME, data=user_input)
+
+        try:
+            model_options = await _fetch_model_options(self._get_entry(), _is_tts_model)
+        except OpenAIError:
+            return self.async_abort(reason="cannot_connect")
+        except Exception:
+            _LOGGER.exception("Unexpected exception")
+            return self.async_abort(reason="unknown")
+
+        if not model_options:
+            return self.async_abort(reason="no_speech_models")
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_MODEL): SelectSelector(
+                        SelectSelectorConfig(
+                            options=model_options,
+                            mode=SelectSelectorMode.DROPDOWN,
+                            sort=True,
+                        ),
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Change the speech model of an existing entity."""
+        subentry = self._get_reconfigure_subentry()
+
+        if user_input is not None:
+            return self.async_update_and_abort(
+                self._get_entry(), subentry, data=user_input
+            )
+
+        try:
+            model_options = await _fetch_model_options(self._get_entry(), _is_tts_model)
+        except OpenAIError:
+            return self.async_abort(reason="cannot_connect")
+        except Exception:
+            _LOGGER.exception("Unexpected exception")
+            return self.async_abort(reason="unknown")
+
+        if not model_options:
+            return self.async_abort(reason="no_speech_models")
 
         return self.async_show_form(
             step_id="reconfigure",
