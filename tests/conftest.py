@@ -16,8 +16,10 @@ from custom_components.noris_ai.const import (
     DEFAULT_AI_TASK_NAME,
     DEFAULT_CONVERSATION_NAME,
     DEFAULT_STT_NAME,
+    DEFAULT_TTS_NAME,
     DOMAIN,
     STT_SUBENTRY_TYPE,
+    TTS_SUBENTRY_TYPE,
 )
 from homeassistant.config_entries import ConfigSubentryData
 from homeassistant.const import CONF_API_KEY, CONF_MODEL
@@ -26,6 +28,7 @@ from homeassistant.setup import async_setup_component
 
 CHAT_MODEL = "vllm/release/gpt-oss-120b"
 AUDIO_MODEL = "vllm/qsu/voxtral-small-24b-2507"
+SPEECH_MODEL = "Cosyvoice3/release/cosyvoice3-0.5b-rl"
 
 
 @pytest.fixture(autouse=True)
@@ -90,6 +93,8 @@ def default_models() -> list[Any]:
             "vllm/qsu/voxtral-small-24b-2507",
             hugging_face_id="mistralai/Voxtral-Small-24B-2507",
         ),
+        fake_model(SPEECH_MODEL),
+        fake_model("Kokoro-TTS/release/kokoro-tts-german-martin"),
         # Deliberately NOT ids the legacy substring fallback ("reranker" /
         # "harrier") would also catch: these ids must be excluded solely by
         # output_modalities, so a broken metadata check shows up here.
@@ -144,6 +149,12 @@ def mock_config_entry() -> MockConfigEntry:
                 data={CONF_MODEL: AUDIO_MODEL},
                 subentry_type=STT_SUBENTRY_TYPE,
                 title=DEFAULT_STT_NAME,
+                unique_id=None,
+            ),
+            ConfigSubentryData(
+                data={CONF_MODEL: SPEECH_MODEL},
+                subentry_type=TTS_SUBENTRY_TYPE,
+                title=DEFAULT_TTS_NAME,
                 unique_id=None,
             ),
         ],

@@ -12,7 +12,8 @@
   "dependencies": [
     "conversation",
     "ai_task",
-    "stt"
+    "stt",
+    "tts"
   ],
   "documentation": "https://github.com/fsippel/noris-ai",
   "integration_type": "service",

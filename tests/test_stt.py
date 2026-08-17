@@ -289,7 +289,7 @@ async def test_device_identity_matches_across_platforms(
         device_registry, mock_config_entry.entry_id
     )
 
-    assert len(devices) == 3
+    assert len(devices) == 4
     for device in devices:
         assert device.manufacturer == "noris network AG"
         assert device.entry_type is dr.DeviceEntryType.SERVICE

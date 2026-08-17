@@ -22,7 +22,7 @@ from .const import (
     STT_SUBENTRY_TYPE,
 )
 
-PLATFORMS = [Platform.AI_TASK, Platform.CONVERSATION, Platform.STT]
+PLATFORMS = [Platform.AI_TASK, Platform.CONVERSATION, Platform.STT, Platform.TTS]
 
 # Subentries created before 1.2 were titled with the raw model id, which left
 # the device card showing no indication of what the device was.
