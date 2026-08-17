@@ -435,6 +435,72 @@ async def test_tts_subentry_creates_entity(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == DEFAULT_TTS_NAME
+    assert result["data"] == {"model": "Cosyvoice3/release/cosyvoice3-0.5b-rl"}
+
+
+async def test_tts_subentry_reconfigure_changes_model(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Reconfiguring the TTS subentry offers the current model and updates it.
+
+    Mirrors test_stt_subentry_reconfigure_changes_model: TtsFlowHandler.
+    async_step_reconfigure is the identical defect a reviewer caught in the
+    STT work — a ``raise RuntimeError`` as its first statement, or deleting
+    its ``no_speech_models`` guard, left the full suite green with zero
+    coverage of this method.
+    """
+    await setup_integration(hass, mock_config_entry)
+    subentry_id = next(
+        subentry_id
+        for subentry_id, subentry in mock_config_entry.subentries.items()
+        if subentry.subentry_type == TTS_SUBENTRY_TYPE
+    )
+
+    result = await mock_config_entry.start_subentry_reconfigure_flow(hass, subentry_id)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    model_key = next(k for k in result["data_schema"].schema if k == "model")
+    assert (
+        model_key.description["suggested_value"]
+        == "Cosyvoice3/release/cosyvoice3-0.5b-rl"
+    )
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"model": "Kokoro-TTS/release/kokoro-tts-german-martin"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    updated = mock_config_entry.subentries[subentry_id]
+    assert updated.data["model"] == "Kokoro-TTS/release/kokoro-tts-german-martin"
+
+
+async def test_tts_subentry_reconfigure_aborts_without_speech_models(
+    hass: HomeAssistant,
+    mock_client: AsyncMock,
+    mock_config_entry: MockConfigEntry,
+    default_models: list,
+) -> None:
+    """Reconfigure also guards against an empty speech-model dropdown.
+
+    Pins the ``no_speech_models`` guard inside async_step_reconfigure, which
+    is a separate code path from async_step_init's identical-looking guard.
+    """
+    await setup_integration(hass, mock_config_entry)
+    subentry_id = next(
+        subentry_id
+        for subentry_id, subentry in mock_config_entry.subentries.items()
+        if subentry.subentry_type == TTS_SUBENTRY_TYPE
+    )
+    mock_client.models.list = MagicMock(
+        return_value=FakeModelList([m for m in default_models if not _is_tts_model(m)])
+    )
+
+    result = await mock_config_entry.start_subentry_reconfigure_flow(hass, subentry_id)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "no_speech_models"
 
 
 async def test_tts_subentry_aborts_without_speech_models(
