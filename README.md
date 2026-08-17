@@ -214,18 +214,17 @@ Dutch, Portuguese and Hindi. Audio is sent as 16 kHz mono PCM wrapped in a WAV c
 > correctly, so the integration recognises audio models by name (Voxtral, Whisper and similar). If
 > your gateway gains an audio model that is not listed, open an issue.
 
-### Text-to-speech is not available
+### Text-to-speech
 
-ai.noris.de does not currently expose a text-to-speech endpoint. Requests to `/v1/audio/speech`
-are rejected by the gateway itself:
+ai.noris.de gained text-to-speech models on 2026-08-17 — `Kokoro-TTS` (a German voice) and
+`Cosyvoice3` (multilingual). Both answer `/v1/audio/speech` with WAV audio in one to two seconds.
 
-```
-400 "speech is not supported by vllm provider"
-```
+**This integration does not expose them yet.** Support is in progress; until it lands, pair this
+integration's speech-to-text with a separate TTS engine such as Home Assistant's local **Piper**.
 
-This is a limitation of the gateway, not of this integration — no integration code can work around
-it. Until noris configures a speech-capable provider, pair this integration's speech-to-text with a
-separate TTS engine such as Home Assistant's local **Piper**.
+Earlier versions of this README stated that text-to-speech was impossible against this gateway.
+That was accurate when written — `/v1/audio/speech` was rejected at the provider level with
+`400 "speech is not supported by vllm provider"` — but it is no longer true.
 
 ## Troubleshooting
 
