@@ -1,7 +1,7 @@
 # Text-to-Speech for the noris AI integration
 
 **Date:** 2026-08-17
-**Status:** Approved design, not yet implemented
+**Status:** Implemented. Live verification against the production instance is still outstanding.
 **Supersedes:** §3 of `docs/specs/2026-08-15-stt-design.md`, which concluded that text-to-speech
 was not implementable against this gateway. That was true when written and is no longer true.
 
