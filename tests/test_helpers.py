@@ -69,6 +69,10 @@ def test_pcm_to_wav_handles_empty_audio() -> None:
             ["de", "de-DE", "de-AT", "de-CH"],
         ),
         (
+            "Orpheus-TTS/release/orpheus-tts-english-alex",
+            ["en", "en-US", "en-GB", "en-AU", "en-CA"],
+        ),
+        (
             "Cosyvoice3/release/cosyvoice3-0.5b-rl",
             ["de", "de-DE", "de-AT", "de-CH", "en", "en-US", "en-GB", "en-AU", "en-CA"],
         ),
@@ -90,6 +94,17 @@ def test_tts_languages_german_pattern_wins_over_cosyvoice() -> None:
         "de-DE",
         "de-AT",
         "de-CH",
+    ]
+
+
+def test_tts_languages_english_pattern_wins_over_cosyvoice() -> None:
+    """The English row is symmetric with the German one: narrower claim wins."""
+    assert tts_languages_for_model("Cosyvoice3/release/cosyvoice-english-tom") == [
+        "en",
+        "en-US",
+        "en-GB",
+        "en-AU",
+        "en-CA",
     ]
 
 

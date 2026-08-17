@@ -101,7 +101,8 @@ TTS_TIMEOUT = 30.0
 # AUDIO_MODEL_PATTERN, every audio model is stamped with the default
 # text-in/text-out chat template, so speech models are matched by name.
 # Delete this in favour of output_modalities once the catalog reports an
-# "audio" output type.
+# "audio" output type. Do not "simplify" this to the modality metadata
+# without re-probing /v1/models first.
 TTS_MODEL_PATTERN = re.compile(
     r"kokoro|cosyvoice|orpheus|xtts|bark|-tts/|tts-", re.IGNORECASE
 )
@@ -127,6 +128,7 @@ TTS_ENGLISH = ["en", "en-US", "en-GB", "en-AU", "en-CA"]
 # First match wins, so an ambiguous name resolves to the narrower claim.
 TTS_LANGUAGES_BY_PATTERN = (
     (re.compile(r"german|deutsch", re.IGNORECASE), TTS_GERMAN),
+    (re.compile(r"english|englisch", re.IGNORECASE), TTS_ENGLISH),
     (re.compile(r"cosyvoice", re.IGNORECASE), TTS_GERMAN + TTS_ENGLISH),
 )
 TTS_DEFAULT_LANGUAGES = TTS_GERMAN + TTS_ENGLISH
