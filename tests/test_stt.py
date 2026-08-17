@@ -21,7 +21,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.noris_ai.const import STT_TIMEOUT
 from homeassistant.components import stt
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .conftest import setup_integration
 
@@ -272,3 +272,26 @@ async def test_language_without_region(
     )
 
     assert mock_client.audio.transcriptions.create.call_args.kwargs["language"] == "en"
+
+
+async def test_device_identity_matches_across_platforms(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Every platform's device carries the same identity fields.
+
+    The device-info block is shared through NorisAISubentryEntity; this pins the
+    fields so the extraction cannot silently change any of them.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    device_registry = dr.async_get(hass)
+    devices = dr.async_entries_for_config_entry(
+        device_registry, mock_config_entry.entry_id
+    )
+
+    assert len(devices) == 3
+    for device in devices:
+        assert device.manufacturer == "noris network AG"
+        assert device.entry_type is dr.DeviceEntryType.SERVICE
+        assert device.model is not None
+        assert device.name is not None

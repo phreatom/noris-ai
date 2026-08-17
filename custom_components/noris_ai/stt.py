@@ -7,20 +7,12 @@ from collections.abc import AsyncIterable
 import openai
 
 from homeassistant.components import stt
-from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import NorisAIConfigEntry
-from .const import (
-    DOMAIN,
-    LOGGER,
-    STT_SUBENTRY_TYPE,
-    STT_SUPPORTED_LANGUAGES,
-    STT_TIMEOUT,
-)
+from .const import LOGGER, STT_SUBENTRY_TYPE, STT_SUPPORTED_LANGUAGES, STT_TIMEOUT
+from .entity import NorisAISubentryEntity
 from .helpers import pcm_to_wav
 
 PARALLEL_UPDATES = 0
@@ -39,33 +31,16 @@ async def async_setup_entry(
         )
 
 
-class NorisAISttEntity(stt.SpeechToTextEntity):
+class NorisAISttEntity(stt.SpeechToTextEntity, NorisAISubentryEntity):
     """noris AI speech-to-text engine.
 
-    Does not extend NorisAIEntity: that base class exists to drive the chat-log
-    loop (tools, thinking extraction), none of which applies to transcription.
+    Device identity comes from NorisAISubentryEntity. This does NOT extend
+    NorisAIEntity, whose purpose is the chat-log loop (tools, thinking
+    extraction) — none of which applies to transcription.
     """
 
     _attr_has_entity_name = True
     _attr_name = None
-
-    def __init__(
-        self,
-        entry: NorisAIConfigEntry,
-        subentry: ConfigSubentry,
-    ) -> None:
-        """Initialize the speech-to-text entity."""
-        self.entry = entry
-        self.subentry = subentry
-        self.model = subentry.data[CONF_MODEL]
-        self._attr_unique_id = subentry.subentry_id
-        self._attr_device_info = dr.DeviceInfo(
-            identifiers={(DOMAIN, subentry.subentry_id)},
-            name=subentry.title,
-            manufacturer="noris network AG",
-            model=self.model,
-            entry_type=dr.DeviceEntryType.SERVICE,
-        )
 
     @property
     def supported_languages(self) -> list[str]:
