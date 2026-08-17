@@ -149,9 +149,21 @@ async def test_auth_error_starts_reauth(
 
 
 async def test_timeout_raises(
-    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: AsyncMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A stalled gateway fails rather than hanging the pipeline."""
+    """A stalled gateway fails rather than hanging the pipeline.
+
+    Asserting on the distinguishing "timed out after" log (the way
+    test_404_names_the_model pins its own branch) is what pins this to the
+    APITimeoutError clause specifically: without it, deleting that whole
+    ``except openai.APITimeoutError`` clause still passes, because
+    APITimeoutError subclasses OpenAIError and the broader ``except
+    openai.OpenAIError`` clause below already guarantees the error doesn't
+    escape as anything but a HomeAssistantError.
+    """
     request = httpx.Request("POST", "https://ai.noris.de/v1/audio/speech")
     mock_client.audio.speech.create = AsyncMock(
         side_effect=APITimeoutError(request=request)
@@ -160,6 +172,52 @@ async def test_timeout_raises(
 
     with pytest.raises(HomeAssistantError):
         await _entity(hass, mock_config_entry).async_get_tts_audio("Hallo.", "de", {})
+
+    assert "timed out after" in caplog.text
+
+
+async def test_synthesis_via_component_returns_audio(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Enter through HA's tts component, not the entity, and get audio back.
+
+    All the other tests in this file call async_get_tts_audio directly on the
+    entity object, which never exercises the tts component's own guards —
+    notably ``_async_generate_tts_audio``'s check that ``engine_instance.name``
+    is neither ``None`` nor ``UNDEFINED``. That check is why
+    ``_attr_has_entity_name = True`` + ``_attr_name = None`` made every
+    request fail with "TTS engine name is not set." even though the entity's
+    own async_get_tts_audio worked fine in isolation. Going through
+    generate_media_source_id / async_get_media_source_audio is what actually
+    proves the platform can speak.
+
+    preferred_format "wav" is mandatory: without it HA defaults to mp3 and
+    shells out to the ffmpeg *binary*, which is not installed in this
+    environment (ha-ffmpeg in requirements_test.txt is only the Python
+    wrapper), so omitting the hint fails the test for an unrelated reason.
+    """
+    mock_client.audio.speech.create = AsyncMock(return_value=_binary(WAV))
+    await setup_integration(hass, mock_config_entry)
+
+    registry = er.async_get(hass)
+    entity_id = next(
+        e.entity_id
+        for e in er.async_entries_for_config_entry(registry, mock_config_entry.entry_id)
+        if e.domain == "tts"
+    )
+
+    msg_id = tts.generate_media_source_id(
+        hass,
+        "Das Licht ist an.",
+        engine=entity_id,
+        language="de-DE",
+        options={"preferred_format": "wav"},
+    )
+    extension, audio = await tts.async_get_media_source_audio(hass, msg_id)
+
+    assert extension == "wav"
+    assert audio == WAV
+    mock_client.audio.speech.create.assert_called_once()
 
 
 async def test_spoken_text_is_never_logged(

@@ -46,8 +46,12 @@ class NorisAITtsEntity(tts.TextToSpeechEntity, NorisAISubentryEntity):
     synthesis.
     """
 
-    _attr_has_entity_name = True
-    _attr_name = None
+    _attr_has_entity_name = False
+
+    @property
+    def name(self) -> str:
+        """Return the entity name. HA's tts component rejects a None name."""
+        return self.subentry.title
 
     @property
     def default_language(self) -> str:

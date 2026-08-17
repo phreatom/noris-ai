@@ -37,6 +37,24 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
     return
 
 
+@pytest.fixture
+def hass_config_dir(hass_tmp_config_dir: str) -> str:
+    """Use a fresh, per-test config directory instead of the plugin's shared one.
+
+    Without this override every test shares
+    ``pytest_homeassistant_custom_component/testing_config`` as ``hass.config``,
+    including its ``tts/`` disk cache. The tts component's
+    ``async_get_media_source_audio`` path checks that disk cache *before*
+    calling the entity, keyed only on message+language+options+engine — so a
+    synthesis test run once leaves a file behind that lets an identical test
+    pass on every subsequent run without the mocked API ever being called
+    again, silently defeating the test. ``hass_tmp_config_dir`` (from the
+    plugin) copies the shared config into a pytest ``tmp_path`` that is
+    discarded after the test.
+    """
+    return hass_tmp_config_dir
+
+
 def fake_model(
     model_id: str,
     *,
