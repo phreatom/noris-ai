@@ -9,7 +9,11 @@ from openai import APIConnectionError, AuthenticationError
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.noris_ai.config_flow import _is_chat_model, _is_stt_model
+from custom_components.noris_ai.config_flow import (
+    _is_chat_model,
+    _is_stt_model,
+    _is_tts_model,
+)
 from custom_components.noris_ai.const import (
     AI_TASK_SUBENTRY_TYPE,
     DEFAULT_STT_NAME,
@@ -340,6 +344,35 @@ async def test_conversation_subentry_excludes_audio_models(
     values = [option["value"] for option in options]
     assert "vllm/qsu/voxtral-small-24b-2507" not in values
     assert "vllm/release/gpt-oss-120b" in values
+
+
+def test_tts_filter_accepts_speech_models() -> None:
+    """Both speech models on the gateway are offered as TTS engines."""
+    assert (
+        _is_tts_model(fake_model("Kokoro-TTS/release/kokoro-tts-german-martin")) is True
+    )
+    assert _is_tts_model(fake_model("Cosyvoice3/release/cosyvoice3-0.5b-rl")) is True
+
+
+def test_tts_filter_rejects_chat_and_transcription_models() -> None:
+    """Chat models and the transcription model are not speech synthesisers."""
+    assert _is_tts_model(fake_model("vllm/release/gpt-oss-120b")) is False
+    assert (
+        _is_tts_model(
+            fake_model(
+                "vllm/qsu/voxtral-small-24b-2507",
+                hugging_face_id="mistralai/Voxtral-Small-24B-2507",
+            )
+        )
+        is False
+    )
+
+
+def test_speech_models_do_not_leak_into_chat_or_stt_filters() -> None:
+    """A TTS model must not be selectable as a chat or transcription model."""
+    kokoro = fake_model("Kokoro-TTS/release/kokoro-tts-german-martin")
+    assert _is_chat_model(kokoro) is False
+    assert _is_stt_model(kokoro) is False
 
 
 async def test_ai_task_subentry_excludes_audio_models(

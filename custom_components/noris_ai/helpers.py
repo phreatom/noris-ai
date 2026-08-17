@@ -5,6 +5,8 @@ from __future__ import annotations
 import io
 import wave
 
+from .const import TTS_DEFAULT_LANGUAGES, TTS_LANGUAGES_BY_PATTERN
+
 
 def pcm_to_wav(audio: bytes, rate: int, width: int, channels: int) -> bytes:
     """Wrap raw PCM samples in a WAV container.
@@ -29,3 +31,16 @@ def pcm_to_wav(audio: bytes, rate: int, width: int, channels: int) -> bytes:
         wav_file.setframerate(rate)
         wav_file.writeframes(audio)
     return buffer.getvalue()
+
+
+def tts_languages_for_model(model_id: str) -> list[str]:
+    """Return the language tags a speech model can be trusted with.
+
+    The gateway's catalog reports no language information, so coverage is
+    derived from the model name — see TTS_LANGUAGES_BY_PATTERN. Returns a copy
+    so callers cannot mutate the module-level table.
+    """
+    for pattern, languages in TTS_LANGUAGES_BY_PATTERN:
+        if pattern.search(model_id):
+            return list(languages)
+    return list(TTS_DEFAULT_LANGUAGES)

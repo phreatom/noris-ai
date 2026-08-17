@@ -7,7 +7,7 @@ import wave
 
 import pytest
 
-from custom_components.noris_ai.helpers import pcm_to_wav
+from custom_components.noris_ai.helpers import pcm_to_wav, tts_languages_for_model
 
 # 100 frames of 16-bit mono silence.
 PCM = b"\x00\x00" * 100
@@ -59,3 +59,42 @@ def test_pcm_to_wav_handles_empty_audio() -> None:
 
     with wave.open(io.BytesIO(result), "rb") as wav_file:
         assert wav_file.getnframes() == 0
+
+
+@pytest.mark.parametrize(
+    ("model_id", "expected"),
+    [
+        (
+            "Kokoro-TTS/release/kokoro-tts-german-martin",
+            ["de", "de-DE", "de-AT", "de-CH"],
+        ),
+        (
+            "Cosyvoice3/release/cosyvoice3-0.5b-rl",
+            ["de", "de-DE", "de-AT", "de-CH", "en", "en-US", "en-GB", "en-AU", "en-CA"],
+        ),
+        (
+            "some-vendor/unknown-voice-v2",
+            ["de", "de-DE", "de-AT", "de-CH", "en", "en-US", "en-GB", "en-AU", "en-CA"],
+        ),
+    ],
+)
+def test_tts_languages_for_model(model_id: str, expected: list[str]) -> None:
+    """Languages are derived from the model name, German-only where warranted."""
+    assert tts_languages_for_model(model_id) == expected
+
+
+def test_tts_languages_german_pattern_wins_over_cosyvoice() -> None:
+    """An ambiguous name resolves to the safer, narrower claim."""
+    assert tts_languages_for_model("Cosyvoice3/release/cosyvoice-german-anna") == [
+        "de",
+        "de-DE",
+        "de-AT",
+        "de-CH",
+    ]
+
+
+def test_tts_languages_returns_a_copy() -> None:
+    """Callers must not be able to mutate the module-level table."""
+    first = tts_languages_for_model("Cosyvoice3/release/cosyvoice3-0.5b-rl")
+    first.append("zz")
+    assert "zz" not in tts_languages_for_model("Cosyvoice3/release/cosyvoice3-0.5b-rl")

@@ -40,6 +40,7 @@ from .const import (
     DOMAIN,
     RECOMMENDED_CONVERSATION_OPTIONS,
     STT_SUBENTRY_TYPE,
+    TTS_MODEL_PATTERN,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -91,6 +92,17 @@ def _is_chat_model(model: Any) -> bool:
 def _is_stt_model(model: Any) -> bool:
     """Return True for vLLM models usable as a transcription engine."""
     return model.id.startswith("vllm/") and _is_audio_model(model)
+
+
+def _is_tts_model(model: Any) -> bool:
+    """Return True for models that can synthesise speech.
+
+    Unlike _is_chat_model and _is_stt_model, this deliberately does NOT gate on
+    a "vllm/" prefix: the speech models live under their own providers
+    (Kokoro-TTS/, Cosyvoice3/), so requiring "vllm/" would reject every one of
+    them.
+    """
+    return bool(TTS_MODEL_PATTERN.search(model.id))
 
 
 async def _fetch_model_options(
