@@ -66,7 +66,14 @@ class NorisAITtsEntity(tts.TextToSpeechEntity, NorisAISubentryEntity):
     async def async_get_tts_audio(
         self, message: str, language: str, options: dict[str, Any]
     ) -> tts.TtsAudioType:
-        """Synthesise speech for a message."""
+        """Synthesise speech for a message.
+
+        ``language`` and ``options`` are intentionally unused: the speech
+        endpoint takes no language argument, and each model has exactly one
+        voice (see TTS_VOICE), so there is nothing to pass through. A request
+        naming e.g. "de-AT" is honoured only insofar as the chosen model's
+        claimed languages (supported_languages) already cover it.
+        """
         client = self.entry.runtime_data
 
         try:
@@ -81,6 +88,10 @@ class NorisAITtsEntity(tts.TextToSpeechEntity, NorisAISubentryEntity):
                 voice=TTS_VOICE,
                 response_format="wav",
             )
+        # AuthenticationError and PermissionDeniedError subclass APIStatusError,
+        # which subclasses OpenAIError, so this ordering (auth -> APIStatusError
+        # -> APITimeoutError -> OpenAIError) is load-bearing: reordering it
+        # silently breaks the reauth path.
         except (openai.AuthenticationError, openai.PermissionDeniedError) as err:
             LOGGER.error("Authentication failed during synthesis: %s", err)
             self.entry.async_start_reauth(self.hass)
@@ -92,8 +103,10 @@ class NorisAITtsEntity(tts.TextToSpeechEntity, NorisAISubentryEntity):
                     "text-to-speech entity to use a speech model",
                     self.model,
                 )
-            else:
-                LOGGER.error("Error talking to speech API: %s", err)
+                raise HomeAssistantError(
+                    f"Model {self.model} does not support speech synthesis"
+                ) from err
+            LOGGER.error("Error talking to speech API: %s", err)
             raise HomeAssistantError("Error talking to speech API") from err
         except openai.APITimeoutError as err:
             LOGGER.error("Speech synthesis timed out after %s seconds", TTS_TIMEOUT)

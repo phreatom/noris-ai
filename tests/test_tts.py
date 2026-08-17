@@ -124,6 +124,7 @@ async def test_404_names_the_model(
     with pytest.raises(HomeAssistantError):
         await _entity(hass, mock_config_entry).async_get_tts_audio("Hallo.", "de", {})
 
+    assert "does not support speech synthesis" in caplog.text
     assert "Cosyvoice3/release/cosyvoice3-0.5b-rl" in caplog.text
 
 

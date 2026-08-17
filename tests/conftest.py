@@ -127,7 +127,7 @@ def mock_client(default_models: list[Any]) -> Iterator[AsyncMock]:
 
 @pytest.fixture
 def mock_config_entry() -> MockConfigEntry:
-    """Return a config entry with conversation, AI task, and STT subentries."""
+    """Return a config entry with conversation, AI task, STT, and TTS subentries."""
     return MockConfigEntry(
         domain=DOMAIN,
         title="noris AI",
