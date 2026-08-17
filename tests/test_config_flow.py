@@ -17,8 +17,10 @@ from custom_components.noris_ai.config_flow import (
 from custom_components.noris_ai.const import (
     AI_TASK_SUBENTRY_TYPE,
     DEFAULT_STT_NAME,
+    DEFAULT_TTS_NAME,
     DOMAIN,
     STT_SUBENTRY_TYPE,
+    TTS_SUBENTRY_TYPE,
 )
 from homeassistant import config_entries
 from homeassistant.const import CONF_API_KEY
@@ -395,3 +397,62 @@ async def test_ai_task_subentry_excludes_audio_models(
     values = [option["value"] for option in options]
     assert "vllm/qsu/voxtral-small-24b-2507" not in values
     assert "vllm/release/gpt-oss-120b" in values
+
+
+async def test_tts_subentry_offers_only_speech_models(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The TTS dropdown lists the speech models and nothing else."""
+    await setup_integration(hass, mock_config_entry)
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, TTS_SUBENTRY_TYPE),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    options = result["data_schema"].schema["model"].config["options"]
+    values = [option["value"] for option in options]
+    assert "Cosyvoice3/release/cosyvoice3-0.5b-rl" in values
+    assert "Kokoro-TTS/release/kokoro-tts-german-martin" in values
+    assert "vllm/release/gpt-oss-120b" not in values
+    assert "vllm/qsu/voxtral-small-24b-2507" not in values
+
+
+async def test_tts_subentry_creates_entity(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Choosing a model creates a subentry with the friendly title."""
+    await setup_integration(hass, mock_config_entry)
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, TTS_SUBENTRY_TYPE),
+        context={"source": config_entries.SOURCE_USER},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"model": "Cosyvoice3/release/cosyvoice3-0.5b-rl"}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == DEFAULT_TTS_NAME
+
+
+async def test_tts_subentry_aborts_without_speech_models(
+    hass: HomeAssistant,
+    mock_client: AsyncMock,
+    mock_config_entry: MockConfigEntry,
+    default_models: list,
+) -> None:
+    """With no speech model on the gateway, say so instead of an empty dropdown."""
+    await setup_integration(hass, mock_config_entry)
+    mock_client.models.list = MagicMock(
+        return_value=FakeModelList([m for m in default_models if not _is_tts_model(m)])
+    )
+
+    result = await hass.config_entries.subentries.async_init(
+        (mock_config_entry.entry_id, TTS_SUBENTRY_TYPE),
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "no_speech_models"
