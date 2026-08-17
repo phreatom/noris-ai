@@ -5,12 +5,15 @@ gateway.
 
 It adds a **Conversation agent** (for Assist / voice &amp; text control of your
 devices), an **AI Task** entity (structured or free-text data generation for
-automations), and a **Speech-to-text** entity (transcribe Assist voice
-commands), built on the OpenAI-compatible Chat Completions and transcription
-APIs of the gateway.
+automations), a **Speech-to-text** entity (transcribe Assist voice commands),
+and a **Text-to-speech** entity (speak through the gateway's speech models),
+built on the OpenAI-compatible Chat Completions, transcription, and speech APIs
+of the gateway.
 
-Only the **`vllm/*`** models are offered in the model picker. Rerankers and
-small draft models are filtered out automatically.
+For the **Conversation agent** and **AI Task** entities, only **`vllm/*`** models
+are offered in the model picker; rerankers and small draft models are filtered
+out automatically. Speech-to-text and Text-to-speech entities draw models from
+other providers available on the gateway.
 
 ## Features
 
@@ -30,7 +33,10 @@ small draft models are filtered out automatically.
 
 - A Home Assistant instance running **2026.7.0** or newer.
 - An **API key** for ai.noris.de (see below).
-- At least one working `vllm/*` chat model available on your gateway.
+- At least one working **`vllm/*` chat model** available on your gateway (for the
+  Conversation agent and AI Task).
+- For Speech-to-text: an audio model such as Voxtral or Whisper.
+- For Text-to-speech: a speech model such as Cosyvoice3 or Kokoro-TTS.
 
 ## Obtaining an API key
 
@@ -65,12 +71,16 @@ Copy the `custom_components/noris_ai` folder into your Home Assistant
 2. Paste your API key (the `sk-bf-…` value). The key is validated against
    `https://ai.noris.de/v1/models`.
 3. Once added, open the integration card and use **Add conversation agent**,
-   **Add AI task**, and/or **Add speech-to-text** to create entities:
-   - Pick a `vllm/*` model from the dropdown (loaded live from the gateway).
+   **Add AI task**, **Add speech-to-text**, and/or **Add text-to-speech** to create
+   entities:
+   - For the **Conversation agent** and **AI task**, pick a `vllm/*` model from the
+     dropdown (loaded live from the gateway).
    - For the conversation agent, optionally enable **Control Home Assistant**
      to allow device control via tool-calling.
-   - For speech-to-text, only models the gateway can transcribe with are
-     listed — see [Speech-to-text](#speech-to-text) below.
+   - For **Speech-to-text**, only models the gateway can transcribe with are listed
+     — see [Speech-to-text](#speech-to-text) below.
+   - For **Text-to-speech**, select from available speech models — see
+     [Text-to-speech](#text-to-speech) below.
 
 ## Using the conversation agent
 
@@ -179,11 +189,13 @@ script:
 
 ## Available models
 
-- The model dropdown is populated **live** from `https://ai.noris.de/v1/models`
-  when you add an agent/task.
-- Only `vllm/*` models are listed. Models whose ID contains `reranker` or
-  `harrier` (draft models) are filtered out.
-- **Tool-calling** (device control) requires a model that supports function
+- **Chat and AI-task dropdowns:** populated **live** from `https://ai.noris.de/v1/models`
+  when you add an agent or task. Only `vllm/*` models are listed; models whose ID
+  contains `reranker` or `harrier` (draft models) are filtered out.
+- **Speech-to-text and Text-to-speech dropdowns:** populated live from available
+  models on the gateway. The integration recognizes audio and speech models by name
+  (Voxtral, Whisper, Kokoro-TTS, Cosyvoice3, etc.).
+- **Tool-calling** (device control) requires a chat model that supports function
   calling. Larger instruct models (e.g. `vllm/gpt-oss-120b`,
   `vllm/gemma-4-31b-it`) work best.
 - Even temporarily unavailable models remain selectable; availability changes
@@ -214,7 +226,7 @@ Dutch, Portuguese and Hindi. Audio is sent as 16 kHz mono PCM wrapped in a WAV c
 > correctly, so the integration recognises audio models by name (Voxtral, Whisper and similar). If
 > your gateway gains an audio model that is not listed, open an issue.
 
-### Text-to-speech
+## Text-to-speech
 
 The integration can speak through the gateway's speech models.
 
