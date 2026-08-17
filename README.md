@@ -22,9 +22,9 @@ small draft models are filtered out automatically.
 - 🧠 **Reasoning models** — `thinking` output and vLLM `reasoning` /
   `reasoning_content` fields are surfaced as separate thinking content.
 - 🌍 **Translations** — English and German UI.
-- 🎙️ **Speech-to-text** — transcribe Assist voice commands with an audio model on the gateway
-  (currently Voxtral). Add a *Speech-to-text* entity and select it as the STT engine of a voice
-  pipeline.
+- 🎙️ **Speech-to-text and Text-to-speech** — transcribe Assist voice commands with an audio model
+  (Voxtral), or speak through available speech models. Add *Speech-to-text* or *Text-to-speech*
+  entities and select them in your voice pipeline.
 
 ## Requirements
 
@@ -216,15 +216,21 @@ Dutch, Portuguese and Hindi. Audio is sent as 16 kHz mono PCM wrapped in a WAV c
 
 ### Text-to-speech
 
-ai.noris.de gained text-to-speech models on 2026-08-17 — `Kokoro-TTS` (a German voice) and
-`Cosyvoice3` (multilingual). Both answer `/v1/audio/speech` with WAV audio in one to two seconds.
+The integration can speak through the gateway's speech models.
 
-**This integration does not expose them yet.** Support is in progress; until it lands, pair this
-integration's speech-to-text with a separate TTS engine such as Home Assistant's local **Piper**.
+1. Go to **Settings → Devices & Services → noris AI** and add a **Text-to-speech** entity.
+2. Pick a speech model. Two are available today:
+   - `Cosyvoice3/release/cosyvoice3-0.5b-rl` — multilingual, handles German and English.
+   - `Kokoro-TTS/release/kokoro-tts-german-martin` — a German voice. It reads English
+     phonetically, so pick it only for German.
+3. Go to **Settings → Voice assistants**, open your pipeline and set **Text-to-speech** to the new
+   entity.
 
-Earlier versions of this README stated that text-to-speech was impossible against this gateway.
-That was accurate when written — `/v1/audio/speech` was rejected at the provider level with
-`400 "speech is not supported by vllm provider"` — but it is no longer true.
+Audio comes back as 24 kHz mono WAV. The languages an entity advertises are derived from its model
+name, because the gateway's model catalog does not report language support.
+
+> **Note:** the gateway requires a `voice` parameter but ignores its value — each model has exactly
+> one voice — so the integration offers no voice picker.
 
 ## Troubleshooting
 
