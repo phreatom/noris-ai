@@ -9,6 +9,7 @@ from openai import APIConnectionError, AuthenticationError, PermissionDeniedErro
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.noris_ai import _create_client
 from custom_components.noris_ai.const import (
     CONVERSATION_SUBENTRY_TYPE,
     DEFAULT_CONVERSATION_NAME,
@@ -179,3 +180,19 @@ async def test_entity_ids_derive_from_friendly_titles(
     assert ids["stt"] == "stt.noris_ai_speech_to_text"
     assert ids["ai_task"] == "ai_task.noris_ai_task"
     assert ids["tts"] == "tts.noris_ai_text_to_speech"
+
+
+async def test_client_bounds_request_timeout_and_retries(hass: HomeAssistant) -> None:
+    """A stalled gateway must fail fast instead of hanging a voice satellite.
+
+    Handing the SDK Home Assistant's shared httpx client is not enough: that
+    client carries httpx's *default* timeout, which the SDK treats structurally
+    as "no timeout given" and replaces with its own 600 s default. An
+    unanswered chat completion then pins an Assist pipeline in ``processing``
+    for minutes, while the device refuses to wake. STT and TTS bound themselves
+    per request; the chat path has only what the client carries.
+    """
+    client = _create_client(hass, "sk-bf-test")
+
+    assert client.timeout == httpx.Timeout(60.0, connect=5.0)
+    assert client.max_retries == 1
