@@ -1,4 +1,4 @@
-"""Tests for the response-parsing helpers in entity.py."""
+"""Tests for the non-streaming response-parsing helpers in entity.py."""
 
 from __future__ import annotations
 
@@ -10,25 +10,10 @@ import pytest
 from custom_components.noris_ai.entity import (
     _decode_tool_arguments,
     _extract_thinking,
-    _format_structure_output,
+    _format_structured_output,
     _split_thinking,
-    _strip_markdown_fence,
 )
 from homeassistant.exceptions import HomeAssistantError
-
-
-@pytest.mark.parametrize(
-    ("raw", "expected"),
-    [
-        ('{"city": "Nurnberg"}', '{"city": "Nurnberg"}'),
-        ('```json\n{"city": "Nurnberg"}\n```', '{"city": "Nurnberg"}'),
-        ('```\n{"city": "Nurnberg"}\n```', '{"city": "Nurnberg"}'),
-        ('```{"city": "Nurnberg"}```', '{"city": "Nurnberg"}'),
-    ],
-)
-def test_strip_markdown_fence(raw: str, expected: str) -> None:
-    """Fenced payloads are unwrapped; bare payloads are untouched."""
-    assert _strip_markdown_fence(raw) == expected
 
 
 def test_decode_tool_arguments_plain_json() -> None:
@@ -36,23 +21,10 @@ def test_decode_tool_arguments_plain_json() -> None:
     assert _decode_tool_arguments('{"a": 1}') == {"a": 1}
 
 
-def test_decode_tool_arguments_recovers_from_fence() -> None:
-    """Fenced arguments are recovered rather than failing the tool call."""
-    assert _decode_tool_arguments('```json\n{"a": 1}\n```') == {"a": 1}
-
-
 def test_decode_tool_arguments_raises_on_garbage() -> None:
     """Unrecoverable arguments raise a HomeAssistantError."""
     with pytest.raises(HomeAssistantError, match="Unexpected tool argument"):
         _decode_tool_arguments("not json at all")
-
-
-def test_decode_tool_arguments_raises_on_invalid_fenced_json() -> None:
-    """Fenced but invalid JSON takes a different error path than unfenced garbage."""
-    # This exercises the branch at entity.py:144-147, where the second parse fails
-    # after stripping succeeds. The error message will differ from the unfenced case.
-    with pytest.raises(HomeAssistantError, match="Unexpected tool argument"):
-        _decode_tool_arguments("```json\n{not valid}\n```")
 
 
 def test_split_thinking_extracts_think_tags() -> None:
@@ -138,9 +110,9 @@ def test_extract_thinking_reasoning_field_suppresses_inline_markup() -> None:
     assert _extract_thinking(message) == ("<think>B</think>Antwort", "A")
 
 
-def test_format_structure_output_builds_strict_schema() -> None:
+def test_format_structured_output_builds_strict_schema() -> None:
     """Structured output is requested as a strict JSON schema."""
-    result = _format_structure_output(
+    result = _format_structured_output(
         "wetter", probatio.Schema({probatio.Required("t"): str})
     )
 
@@ -150,8 +122,8 @@ def test_format_structure_output_builds_strict_schema() -> None:
     assert "t" in result["json_schema"]["schema"]["properties"]
 
 
-def test_format_structure_output_defaults_name() -> None:
+def test_format_structured_output_defaults_name() -> None:
     """An empty name falls back to 'data'."""
-    result = _format_structure_output("", probatio.Schema({}))
+    result = _format_structured_output("", probatio.Schema({}))
 
     assert result["json_schema"]["name"] == "data"

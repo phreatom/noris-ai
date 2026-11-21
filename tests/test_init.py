@@ -41,6 +41,8 @@ async def test_setup_stores_client(
 
     assert mock_config_entry.state is ConfigEntryState.LOADED
     assert mock_config_entry.runtime_data is mock_client
+    # The key is validated against the model catalog during setup.
+    mock_client.models.list.assert_awaited_once()
 
 
 @pytest.mark.parametrize("status", [401, 403])
