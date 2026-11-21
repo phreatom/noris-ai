@@ -5,6 +5,9 @@
 # same fixture names.
 pytest-homeassistant==2026.11.1
 ruff==0.16.3
+# CI's test job runs pytest with --cov (ci.yml); without this pin the job
+# fails with "unrecognized arguments: --cov" (pre-existing since 1148cd2).
+pytest-cov==7.1.0
 openai==3.26.0
 hassil==3.11.0
 home-assistant-intents==2026.10.27
