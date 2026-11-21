@@ -208,3 +208,46 @@ async def test_conversation_tool_call_loop_is_bounded(
     )
 
     assert mock_client.chat.completions.create.await_count == MAX_TOOL_ITERATIONS
+
+
+async def test_conversation_payload_serializes(
+    hass: HomeAssistant,
+    mock_client: AsyncMock,
+    mock_config_entry_with_llm_api: MockConfigEntry,
+) -> None:
+    """The model_args payload serializes with the openai SDK's strict JSON.
+
+    openai 3.x builds request bodies with ``allow_nan=False`` and rejects any
+    non-JSON-native object — voluptuous_openapi returned its ``UNSUPPORTED``
+    sentinel for HA 2026.11's probatio tool schemas, so the request raised
+    ``TypeError`` before it ever left the process. The mocked client hides
+    serialization entirely, so the captured payload is run through the SDK's
+    own serializer here.
+    """
+    from openai._utils._json import openapi_dumps
+
+    captured: dict[str, Any] = {}
+
+    def _capture(**kwargs: Any) -> Any:
+        """Record the model_args and answer like a plain completion would."""
+        captured.update(kwargs)
+        return chat_completion("Bestätigt.")
+
+    mock_client.chat.completions.create = AsyncMock(side_effect=_capture)
+    await setup_integration(hass, mock_config_entry_with_llm_api)
+    entity_id = _conversation_entities(hass, mock_config_entry_with_llm_api)[
+        0
+    ].entity_id
+
+    result = await conversation.async_converse(
+        hass, "Ist das Licht an?", None, Context(), agent_id=entity_id
+    )
+    assert result.response.response_type != intent.IntentResponseType.ERROR
+
+    # Raises on NaN/inf and on foreign objects (e.g. probatio sentinels).
+    openapi_dumps(captured)
+
+    assert set(captured) == {"model", "messages", "tools"}
+    assert all(
+        isinstance(tool["function"]["parameters"], dict) for tool in captured["tools"]
+    )

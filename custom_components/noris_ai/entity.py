@@ -20,8 +20,7 @@ from openai.types.chat import (
 )
 from openai.types.chat.chat_completion_message_function_tool_call_param import Function
 from openai.types.shared_params import FunctionDefinition
-import voluptuous as vol
-from voluptuous_openapi import convert
+import probatio
 
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigSubentry
@@ -46,20 +45,24 @@ def _format_tool(
     """Format tool specification."""
     tool_spec = FunctionDefinition(
         name=tool.name,
-        parameters=convert(tool.parameters, custom_serializer=custom_serializer),
+        parameters=probatio.to_openapi(
+            tool.parameters,
+            custom_serializer=custom_serializer,
+            openapi_version="3.1.0",
+        ),
     )
     if tool.description:
         tool_spec["description"] = tool.description
     return ChatCompletionFunctionToolParam(type="function", function=tool_spec)
 
 
-def _format_structure_output(name: str, structure: vol.Schema) -> dict[str, Any]:
+def _format_structure_output(name: str, structure: probatio.Schema) -> dict[str, Any]:
     """Build a JSON-schema ``response_format`` for structured AI Task output."""
     return {
         "type": "json_schema",
         "json_schema": {
             "name": name or "data",
-            "schema": convert(structure),
+            "schema": probatio.to_openapi(structure, openapi_version="3.1.0"),
             "strict": True,
         },
     }
@@ -241,7 +244,7 @@ class NorisAIEntity(NorisAISubentryEntity):
         self,
         chat_log: conversation.ChatLog,
         structure_name: str | None = None,
-        structure: vol.Schema | None = None,
+        structure: probatio.Schema | None = None,
     ) -> None:
         """Generate an answer for the chat log."""
         model_args: dict[str, Any] = {

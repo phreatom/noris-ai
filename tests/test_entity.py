@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import probatio
 import pytest
-import voluptuous as vol
 
 from custom_components.noris_ai.entity import (
     _decode_tool_arguments,
@@ -140,7 +140,9 @@ def test_extract_thinking_reasoning_field_suppresses_inline_markup() -> None:
 
 def test_format_structure_output_builds_strict_schema() -> None:
     """Structured output is requested as a strict JSON schema."""
-    result = _format_structure_output("wetter", vol.Schema({vol.Required("t"): str}))
+    result = _format_structure_output(
+        "wetter", probatio.Schema({probatio.Required("t"): str})
+    )
 
     assert result["type"] == "json_schema"
     assert result["json_schema"]["name"] == "wetter"
@@ -150,6 +152,6 @@ def test_format_structure_output_builds_strict_schema() -> None:
 
 def test_format_structure_output_defaults_name() -> None:
     """An empty name falls back to 'data'."""
-    result = _format_structure_output("", vol.Schema({}))
+    result = _format_structure_output("", probatio.Schema({}))
 
     assert result["json_schema"]["name"] == "data"
