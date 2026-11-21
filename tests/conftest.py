@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.noris_ai.const import (
     AI_TASK_SUBENTRY_TYPE,
@@ -31,18 +31,12 @@ AUDIO_MODEL = "vllm/qsu/voxtral-small-24b-2507"
 SPEECH_MODEL = "Cosyvoice3/release/cosyvoice3-0.5b-rl"
 
 
-@pytest.fixture(autouse=True)
-def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
-    """Enable loading of this custom integration in every test."""
-    return
-
-
 @pytest.fixture
 def hass_config_dir(hass_tmp_config_dir: str) -> str:
     """Use a fresh, per-test config directory instead of the plugin's shared one.
 
     Without this override every test shares
-    ``pytest_homeassistant_custom_component/testing_config`` as ``hass.config``,
+    ``pytest_homeassistant/testing_config`` as ``hass.config``,
     including its ``tts/`` disk cache. The tts component's
     ``async_get_media_source_audio`` path checks that disk cache *before*
     calling the entity, keyed only on message+language+options+engine — so a

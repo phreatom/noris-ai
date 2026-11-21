@@ -1,10 +1,15 @@
-# Pinned deliberately: this release pins homeassistant==2026.8.2, matching the
+# Pinned deliberately: this release pins homeassistant==2026.11.1, matching the
 # production instance. Bump only together with the production HA version.
-pytest-homeassistant-custom-component==0.13.356
+# pytest-homeassistant-custom-component is deprecated; the official
+# pytest-homeassistant release is versioned by HA release and keeps the
+# same fixture names.
+pytest-homeassistant==2026.11.1
 ruff==0.16.3
-openai>=2.21.0,<3
+openai==3.26.0
 hassil==3.11.0
-home-assistant-intents==2026.7.30
+home-assistant-intents==2026.10.27
+gazetteer-matcher==1.1.0
 PyTurboJPEG==1.8.3
 mutagen==1.48.1
 ha-ffmpeg==3.2.2
+voluptuous-openapi==0.4.1

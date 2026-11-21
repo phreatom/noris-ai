@@ -13,7 +13,7 @@ from openai import (
     AuthenticationError,
 )
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.noris_ai.const import TTS_TIMEOUT, TTS_VOICE
 from homeassistant.components import tts

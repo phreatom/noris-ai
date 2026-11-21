@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 from openai import APIConnectionError, AuthenticationError, PermissionDeniedError
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.noris_ai import _create_client
 from custom_components.noris_ai.const import (

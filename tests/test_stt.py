@@ -16,7 +16,7 @@ from openai import (
     AuthenticationError,
 )
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.noris_ai.const import DOMAIN, STT_TIMEOUT
 from homeassistant.components import stt
@@ -299,9 +299,13 @@ async def test_device_identity_matches_across_platforms(
     )
 
     assert len(devices) == 4
+    # HA 2026.11: devices belong to exactly one config entry and subentry,
+    # so DeviceEntry.config_entry_id / config_subentry_id replace the
+    # removed config_entries_subentries mapping.
     devices_by_subentry_id = {
-        next(iter(device.config_entries_subentries[mock_config_entry.entry_id])): device
+        device.config_subentry_id: device
         for device in devices
+        if device.config_entry_id == mock_config_entry.entry_id
     }
     assert devices_by_subentry_id.keys() == mock_config_entry.subentries.keys()
 
