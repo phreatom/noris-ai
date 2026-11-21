@@ -9,19 +9,34 @@ from homeassistant.helpers import llm
 DOMAIN = "noris_ai"
 LOGGER = logging.getLogger(__package__)
 
-# ai.noris.de is an OpenAI-compatible gateway. Note that authentication does
-# NOT use the standard ``Authorization: Bearer`` header but a custom
-# ``x-bf-vk`` header (see ``__init__._create_client``).
-BASE_URL = "https://ai.noris.de/v1"
-
-# Custom authentication header used by the ai.noris.de gateway.
+# The gateway accepts standard ``Authorization: Bearer`` auth, but this fork
+# sends the key via the custom ``x-bf-vk`` header instead (verified live) —
+# the openai SDK also sets Bearer, so both auth paths are covered.
 AUTH_HEADER = "x-bf-vk"
 
+# ai.noris.de is a Bifrost gateway exposing an OpenAI-compatible API.
+# It accepts standard ``Authorization: Bearer`` auth (verified live), so the
+# openai SDK works out of the box with ``api_key`` + ``base_url``.
+BASE_URL = "https://ai.noris.de/v1"
+
+DEFAULT_MODEL = "vllm/gpt-oss-120b"
+
+CONF_RECOMMENDED = "recommended"
 CONF_MAX_TOKENS = "max_tokens"
 CONF_TEMPERATURE = "temperature"
+CONF_TOP_P = "top_p"
+CONF_ENABLE_REASONING = "enable_reasoning"
+
+# Reasoning models spend tokens on thinking before answering; too small a
+# budget yields empty content with finish_reason == "length".
+RECOMMENDED_CONVERSATION_MAX_TOKENS = 3000
+RECOMMENDED_AI_TASK_MAX_TOKENS = 8000
+RECOMMENDED_TEMPERATURE = 1.0
+RECOMMENDED_TOP_P = 1.0
 
 CONVERSATION_SUBENTRY_TYPE = "conversation"
 AI_TASK_SUBENTRY_TYPE = "ai_task_data"
+
 
 RECOMMENDED_CONVERSATION_OPTIONS = {
     CONF_LLM_HASS_API: [llm.LLM_API_ASSIST],

@@ -4,17 +4,19 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from openai.types import Model
 import pytest
 from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.noris_ai.const import (
     AI_TASK_SUBENTRY_TYPE,
+    CONF_RECOMMENDED,
     CONVERSATION_SUBENTRY_TYPE,
     DEFAULT_AI_TASK_NAME,
     DEFAULT_CONVERSATION_NAME,
+    DEFAULT_MODEL,
     DEFAULT_STT_NAME,
     DEFAULT_TTS_NAME,
     DOMAIN,
@@ -26,6 +28,8 @@ from homeassistant.const import CONF_API_KEY, CONF_MODEL
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 
+# Gateway catalog ids used across the fixtures. CHAT_MODEL/AUDIO_MODEL/
+# SPEECH_MODEL are the live channel-prefixed ids (2026-11-21 catalog).
 CHAT_MODEL = "vllm/release/gpt-oss-120b"
 AUDIO_MODEL = "vllm/qsu/voxtral-small-24b-2507"
 SPEECH_MODEL = "Cosyvoice3/release/cosyvoice3-0.5b-rl"
@@ -49,83 +53,60 @@ def hass_config_dir(hass_tmp_config_dir: str) -> str:
     return hass_tmp_config_dir
 
 
-def fake_model(
-    model_id: str,
-    *,
-    output_type: str | None = "text",
-    hugging_face_id: str | None = None,
-) -> SimpleNamespace:
-    """Build a stand-in for an OpenAI SDK Model.
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(enable_custom_integrations):
+    """Enable loading custom integrations in all tests."""
+    return
 
-    The gateway returns fields the SDK's Model type does not declare, so they
-    live in ``model_extra`` exactly as the SDK exposes them.
+
+@pytest.fixture(autouse=True)
+async def setup_homeassistant_component(hass: HomeAssistant) -> None:
+    """Set up the homeassistant component.
+
+    The conversation component (a manifest dependency of noris_ai) needs the
+    exposed-entities registry that the homeassistant component provides.
     """
-    extra: dict[str, Any] = {"hugging_face_id": hugging_face_id}
-    if output_type is not None:
-        extra["output_modalities"] = [{"type": output_type}]
-    return SimpleNamespace(id=model_id, model_extra=extra)
-
-
-class FakeModelList:
-    """Stand-in for the SDK's AsyncPaginator: awaitable and async-iterable.
-
-    ``_validate_api_key`` awaits ``models.list()`` while ``_fetch_model_options``
-    iterates it, so the fake has to support both.
-    """
-
-    def __init__(self, models: list[Any]) -> None:
-        """Store the models this paginator yields."""
-        self._models = models
-
-    def __await__(self):
-        """Allow ``await client.models.list()``."""
-
-        async def _self() -> FakeModelList:
-            return self
-
-        return _self().__await__()
-
-    def __aiter__(self):
-        """Allow ``async for model in client.models.list()``."""
-
-        async def _gen():
-            for model in self._models:
-                yield model
-
-        return _gen()
+    assert await async_setup_component(hass, "homeassistant", {})
 
 
 @pytest.fixture
-def default_models() -> list[Any]:
-    """Return a model catalog resembling the live gateway."""
+def default_models() -> list[Model]:
+    """Return a model catalog resembling the live gateway (page-style).
+
+    Contains one entry per capability the flows distinguish: chat models, the
+    Voxtral transcription model, both speech models, and a reranker that every
+    picker must exclude.
+    """
     return [
-        fake_model(CHAT_MODEL),
-        fake_model("vllm/qsu/glm-5-2"),
-        fake_model(
-            "vllm/qsu/voxtral-small-24b-2507",
-            hugging_face_id="mistralai/Voxtral-Small-24B-2507",
+        Model(id=CHAT_MODEL, created=0, object="model", owned_by="vllm"),
+        Model(id="vllm/release/glm-5-2", created=0, object="model", owned_by="vllm"),
+        Model(id=AUDIO_MODEL, created=0, object="model", owned_by="vllm"),
+        Model(id=SPEECH_MODEL, created=0, object="model", owned_by="cosyvoice"),
+        Model(
+            id="Kokoro-TTS/release/kokoro-tts-german-martin",
+            created=0,
+            object="model",
+            owned_by="kokoro",
         ),
-        fake_model(SPEECH_MODEL),
-        fake_model("Kokoro-TTS/release/kokoro-tts-german-martin"),
-        # Deliberately NOT ids the legacy substring fallback ("reranker" /
-        # "harrier") would also catch: these ids must be excluded solely by
-        # output_modalities, so a broken metadata check shows up here.
-        fake_model("vllm/release/bge-m3", output_type="rerank"),
-        fake_model("vllm/release/e5-large", output_type="embeddings"),
+        # Excluded from every picker by the name heuristic.
+        Model(id="vllm/bge-reranker-v2-m3", created=0, object="model", owned_by="vllm"),
     ]
 
 
 @pytest.fixture
-def mock_client(default_models: list[Any]) -> Iterator[AsyncMock]:
+def mock_client(default_models: list[Model]) -> Iterator[MagicMock]:
     """Patch the AsyncOpenAI client in both modules that reference it.
 
     ``config_flow`` does ``from . import _create_client``, which binds the name
     into its own namespace at import time, so patching only the package
-    attribute would leave the flow using the real client.
+    attribute would leave the flow using the real client. The catalog is
+    served page-style (``await client.models.list()`` → ``.data``), matching
+    the ``models`` module helpers.
     """
-    client = AsyncMock()
+    client = MagicMock()
     client.with_options = MagicMock(return_value=client)
-    client.models.list = MagicMock(return_value=FakeModelList(default_models))
+    client.models.list = AsyncMock(return_value=SimpleNamespace(data=default_models))
+    client.chat.completions.create = AsyncMock()
 
     with (
         patch("custom_components.noris_ai._create_client", return_value=client),
@@ -134,6 +115,38 @@ def mock_client(default_models: list[Any]) -> Iterator[AsyncMock]:
             return_value=client,
         ),
     ):
+        yield client
+
+
+@pytest.fixture
+def mock_models() -> list[Model]:
+    """Gateway model list: usable, external, and filtered-out entries."""
+    return [
+        Model(id="vllm/gpt-oss-120b", created=0, object="model", owned_by="vllm"),
+        Model(id="vllm/qwen3.6-27b", created=0, object="model", owned_by="vllm"),
+        Model(id="vllm/release/glm-5-2", created=0, object="model", owned_by="vllm"),
+        Model(id="vllm/bge-reranker-v2-m3", created=0, object="model", owned_by="vllm"),
+        Model(
+            id="vllm/harrier-oss-v1-0.6b", created=0, object="model", owned_by="vllm"
+        ),
+        Model.model_construct(
+            id="anthropic/claude-sonnet-5",
+            created=0,
+            object="model",
+            owned_by="anthropic",
+            name="Claude Sonnet 5",
+        ),
+    ]
+
+
+@pytest.fixture
+def mock_openai(mock_models: list[Model]) -> Iterator[MagicMock]:
+    """Patch the AsyncOpenAI class used by the integration."""
+    client = MagicMock()
+    client.with_options = MagicMock(return_value=client)
+    client.models.list = AsyncMock(return_value=SimpleNamespace(data=mock_models))
+    client.chat.completions.create = AsyncMock()
+    with patch("custom_components.noris_ai.AsyncOpenAI", return_value=client):
         yield client
 
 
@@ -173,20 +186,73 @@ def mock_config_entry() -> MockConfigEntry:
     )
 
 
+@pytest.fixture
+def mock_plain_config_entry(hass: HomeAssistant) -> MockConfigEntry:
+    """A config entry with only the API key (no subentries)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="noris AI",
+        data={CONF_API_KEY: "sk-bf-test"},
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+@pytest.fixture
+def mock_config_entry_with_conversation(hass: HomeAssistant) -> MockConfigEntry:
+    """A config entry with one conversation agent (recommended settings)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="noris AI",
+        data={CONF_API_KEY: "sk-bf-test"},
+        subentries_data=[
+            ConfigSubentryData(
+                data={
+                    CONF_MODEL: DEFAULT_MODEL,
+                    CONF_RECOMMENDED: True,
+                    "llm_hass_api": ["assist"],
+                },
+                subentry_type=CONVERSATION_SUBENTRY_TYPE,
+                title="Test Agent",
+                unique_id=None,
+            )
+        ],
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+@pytest.fixture
+def mock_config_entry_with_ai_task(hass: HomeAssistant) -> MockConfigEntry:
+    """A config entry with one AI task entity (recommended settings)."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="noris AI",
+        data={CONF_API_KEY: "sk-bf-test"},
+        subentries_data=[
+            ConfigSubentryData(
+                data={CONF_MODEL: DEFAULT_MODEL, CONF_RECOMMENDED: True},
+                subentry_type=AI_TASK_SUBENTRY_TYPE,
+                title="Test Task",
+                unique_id=None,
+            )
+        ],
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
 async def setup_integration(
     hass: HomeAssistant, entry: MockConfigEntry
 ) -> MockConfigEntry:
-    """Add the config entry to hass and set it up.
+    """Add the config entry to hass (if needed) and set it up.
 
-    The ``homeassistant`` core component is set up first because
-    ``conversation``'s default agent (an ``after_dependencies`` of this
-    integration's platforms) reads ``hass.data[DATA_EXPOSED_ENTITIES]``, which
-    only exists once ``homeassistant`` has run its own setup. In production
-    that component is always loaded first as part of core bootstrap; the test
-    ``hass`` fixture starts already in ``CoreState.running`` without it.
+    Serves both fixture families: entries that pre-added themselves to hass
+    (``mock_plain_config_entry``, ``mock_config_entry_with_*``) are set up
+    directly; entries that did not (``mock_config_entry``) are added first.
     """
-    await async_setup_component(hass, "homeassistant", {})
-    entry.add_to_hass(hass)
+    if entry.entry_id not in {e.entry_id for e in hass.config_entries.async_entries()}:
+        entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry

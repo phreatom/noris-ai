@@ -156,11 +156,11 @@ trivially unit-testable — the whole reason it is a separate module rather than
 ### 5.2 Entity contract
 
 ```python
-supported_formats     = [stt.AudioFormats.WAV]
-supported_codecs      = [stt.AudioCodecs.PCM]
-supported_bit_rates   = [stt.AudioBitRates.BITRATE_16]
-supported_sample_rates= [stt.AudioSampleRates.SAMPLERATE_16000]
-supported_channels    = [stt.AudioChannels.CHANNEL_MONO]
+supported_formats = [stt.AudioFormats.WAV]
+supported_codecs = [stt.AudioCodecs.PCM]
+supported_bit_rates = [stt.AudioBitRates.BITRATE_16]
+supported_sample_rates = [stt.AudioSampleRates.SAMPLERATE_16000]
+supported_channels = [stt.AudioChannels.CHANNEL_MONO]
 ```
 
 These are exactly what the Assist pipeline emits. OGG/Opus is *not* declared: it was not probed
