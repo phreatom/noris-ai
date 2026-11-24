@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import openai
@@ -15,14 +16,146 @@ from . import NorisAIConfigEntry
 from .const import (
     LOGGER,
     TTS_DEFAULT_LANGUAGE,
+    TTS_PASSTHROUGH_HEADER,
+    TTS_PITCH_SEMITONES,
+    TTS_PRONUNCIATIONS,
+    TTS_SAMPLE_RATE,
     TTS_SUBENTRY_TYPE,
     TTS_TIMEOUT,
     TTS_VOICE,
+    TTS_VOICEDESIGN_LANGUAGE,
+    TTS_VOICEDESIGN_LOUDNESS,
+    TTS_VOICEDESIGN_PATTERN,
+    TTS_VOICEDESIGN_SPEED,
+    TTS_VOICEDESIGN_STYLE,
+    TTS_VOICEDESIGN_TASK_TYPE,
+    TTS_VOICEDESIGN_VOICE,
 )
 from .entity import NorisAISubentryEntity
 from .helpers import tts_languages_for_model
 
 PARALLEL_UPDATES = 0
+
+
+def spoken_text(message: str) -> str:
+    """Rewrite product names the German voice would mangle."""
+    for written, spoken in TTS_PRONUNCIATIONS:
+        message = message.replace(written, spoken)
+    return message
+
+
+def pitch_filter(sample_rate: int = TTS_SAMPLE_RATE) -> str:
+    """Return the ffmpeg filter that lowers pitch while keeping the tempo.
+
+    asetrate resamples, which shifts pitch and speed together; atempo then
+    undoes the speed change. One semitone is a factor of 2**(1/12).
+    """
+    factor = 2 ** (TTS_PITCH_SEMITONES / 12)
+    return (
+        f"asetrate={sample_rate}*{factor:.6f},"
+        f"aresample={sample_rate},atempo={1 / factor:.6f}"
+    )
+
+
+def speech_request_kwargs(model: str) -> dict[str, Any]:
+    """Return the per-model fields a speech request needs.
+
+    VoiceDesign checkpoints carry no German presets: the timbre comes from the
+    style text, so the request has to name task_type, instructions and language.
+    The gateway treats all three as unknown fields and forwards them only with
+    the passthrough header, hence the header travels with the request.
+    """
+    if not TTS_VOICEDESIGN_PATTERN.search(model):
+        return {}
+    return {
+        "voice": TTS_VOICEDESIGN_VOICE,
+        "extra_headers": {TTS_PASSTHROUGH_HEADER: "true"},
+        "extra_body": {
+            "task_type": TTS_VOICEDESIGN_TASK_TYPE,
+            "instructions": TTS_VOICEDESIGN_STYLE,
+            "language": TTS_VOICEDESIGN_LANGUAGE,
+        },
+    }
+
+
+def voicedesign_filter(
+    speed: float = TTS_VOICEDESIGN_SPEED,
+    loudness: str = TTS_VOICEDESIGN_LOUDNESS,
+) -> str | None:
+    """Return the ffmpeg chain VoiceDesign audio needs, or None to skip.
+
+    atempo changes tempo only (pitch stays untouched, unlike asetrate) and
+    loudnorm lifts the checkpoint's low output to Kokoro's level.
+    """
+    filters: list[str] = []
+    if speed > 0 and speed != 1:
+        filters.append(f"atempo={speed:.6f}")
+    if loudness:
+        filters.append(loudness)
+    return ",".join(filters) or None
+
+
+async def _ffmpeg_filter(audio: bytes, audio_filter: str, purpose: str) -> bytes:
+    """Return the WAV body with audio_filter applied, or the input on failure.
+
+    Never raises: a missing or unhappy ffmpeg degrades to the original voice
+    rather than silencing the assistant.
+    """
+    args = [
+        "ffmpeg",
+        "-nostdin",
+        "-v",
+        "error",
+        "-f",
+        "wav",
+        "-i",
+        "pipe:0",
+        "-af",
+        audio_filter,
+        "-ac",
+        "1",
+        "-ar",
+        str(TTS_SAMPLE_RATE),
+        "-f",
+        "wav",
+        "pipe:1",
+    ]
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *args,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except (FileNotFoundError, NotImplementedError) as err:
+        LOGGER.warning("ffmpeg unavailable, keeping the original voice: %s", err)
+        return audio
+
+    filtered, errout = await process.communicate(audio)
+    if process.returncode != 0 or not filtered:
+        LOGGER.warning(
+            "%s failed (rc=%s), keeping the original voice: %s",
+            purpose,
+            process.returncode,
+            errout[:200],
+        )
+        return audio
+    return filtered
+
+
+async def shift_pitch(audio: bytes) -> bytes:
+    """Return the WAV body with its pitch lowered, or the input unchanged."""
+    if not TTS_PITCH_SEMITONES:
+        return audio
+    return await _ffmpeg_filter(audio, pitch_filter(), "Pitch shift")
+
+
+async def postprocess_voicedesign(audio: bytes) -> bytes:
+    """Return the WAV body faster and normalised, or the input unchanged."""
+    audio_filter = voicedesign_filter()
+    if audio_filter is None:
+        return audio
+    return await _ffmpeg_filter(audio, audio_filter, "VoiceDesign post-processing")
 
 
 async def async_setup_entry(
@@ -80,18 +213,22 @@ class NorisAITtsEntity(tts.TextToSpeechEntity, NorisAISubentryEntity):
         """
         client = self.entry.runtime_data
 
+        # response_format is sent for correctness even though the gateway
+        # ignores it and always returns WAV. voice is required by the gateway;
+        # its value is ignored by Kokoro (see TTS_VOICE) but selects the
+        # speaker on CosyVoice and VoiceDesign models.
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "input": spoken_text(message),
+            "voice": TTS_VOICE,
+            "response_format": "wav",
+        }
+        kwargs.update(speech_request_kwargs(self.model))
+
         try:
-            # response_format is sent for correctness even though the gateway
-            # ignores it and always returns WAV. voice is required by the
-            # gateway but its value is ignored — see TTS_VOICE.
             response = await client.with_options(
                 timeout=TTS_TIMEOUT
-            ).audio.speech.create(
-                model=self.model,
-                input=message,
-                voice=TTS_VOICE,
-                response_format="wav",
-            )
+            ).audio.speech.create(**kwargs)
         # AuthenticationError and PermissionDeniedError subclass APIStatusError,
         # which subclasses OpenAIError, so this ordering (auth -> APIStatusError
         # -> APITimeoutError -> OpenAIError) is load-bearing: reordering it
@@ -128,4 +265,7 @@ class NorisAITtsEntity(tts.TextToSpeechEntity, NorisAISubentryEntity):
         LOGGER.debug(
             "Synthesised %d characters into %d bytes", len(message), len(audio)
         )
+        audio = await shift_pitch(audio)
+        if TTS_VOICEDESIGN_PATTERN.search(self.model):
+            audio = await postprocess_voicedesign(audio)
         return "wav", audio
